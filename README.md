@@ -1,2 +1,2 @@
 # UPCR
-在这里编辑 readme
+![avatar](tester.png)
