@@ -14,9 +14,13 @@ We implement our models on [TG-ReDial](https://github.com/RUCAIBox/TG-ReDial) an
 
 # Training
 ### TG-ReDial
-* Topic prediction: `python /TG-Redial/TopicPrediction/main.py`
+* For the topic prediction task : `python /TG-Redial/TopicPrediction/main.py`
+* For the recommendation task : `python /TG-Redial/Recommendation/main.py`
+* For the response generation task: `python /TG-Redial/Gneeration/main.py`
 ### REDIAL
-For convenience, our model will report the result on test data automatically after covergence.
+* For the recommendation task : `python /REDIAL/Recommendation/main.py`
+* For the response generation task: `python /REDIAL/Gneeration/main.py`
 
+For convenience, our model will report the result on test data automatically after covergence.
 # Reference
 Variational Reasoning about User Preferences for Conversational Recommendation
