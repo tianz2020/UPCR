@@ -1,2 +1,2 @@
 # UPCR
-![Image text](tester.png)
+![Image text](model.png)
