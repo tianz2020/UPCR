@@ -14,6 +14,8 @@ We implement our models on [TG-ReDial](https://github.com/RUCAIBox/TG-ReDial) an
 
 # Training
 ### TG-ReDial
+* Topic prediction: 'python /TG-Redial/TopicPrediction/main.py'
+### REDIAL
 For convenience, our model will report the result on test data automatically after covergence.
 
 # Reference
