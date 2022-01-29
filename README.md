@@ -13,10 +13,8 @@ We implement our models on [TG-ReDial](https://github.com/RUCAIBox/TG-ReDial) an
 * On the REDIAL dataset, we extract entities from context as topic path, and link them to [DBpedia](https://www.dbpedia.org/) (the linker is provided by [KGSF](https://github.com/RUCAIBox/KGSF)).
 
 # Training
-
-## TG-ReDial
-
-## REDIAL
-
-
+### TG-ReDial
 For convenience, our model will report the result on test data automatically after covergence.
+
+# Reference
+Variational Reasoning about User Preferences for Conversational Recommendation
