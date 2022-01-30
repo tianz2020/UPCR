@@ -32,7 +32,7 @@ class Action(nn.Module):
                                         nn.ReLU(),
                                         nn.Linear(2583,self.n_topic_vocab-2583),
                                         nn.Softmax(-1))
-        # self.graph,_ = vocab.get_movie_relations()
+        
 
     def forward(self,
                 m,
@@ -44,57 +44,50 @@ class Action(nn.Module):
                 tp_path,tp_path_len,
                 related_movies,related_movies_len,
                 mode):
-        '''
-        m :                 [B,L_m,V]
-        l:                  [B,L_l,V]
-        related topics :    [B,L]
-        related_topics_len: [B,]
-        turn:               [B,1]
-        '''
+       
 
         if mode == 'test':
             m = one_hot_scatter(m, self.n_topic_vocab)
             l = one_hot_scatter(l, self.n_topic_vocab)
 
 
-        # preference
+       
         m_mask = m.new_ones(m.size(0),1,m.size(1))
-        m_hidden = self.p_encoder(m,m_mask)  # [B,L,H]
+        m_hidden = self.p_encoder(m,m_mask)  
 
-        # profile
+       
         l_mask = l.new_ones(l.size(0),1,l.size(1))
-        l_hidden = self.p_encoder(l,l_mask)  # [B,L,H]
+        l_hidden = self.p_encoder(l,l_mask) 
 
 
-        # topic path
+        
         tp_path = one_hot_scatter(tp_path, self.n_topic_vocab)
         tp_mask = Tools.get_mask_via_len(tp_path_len, op.state_num)
         tp_path_hidden = self.p_encoder(tp_path, tp_mask)
 
 
-        # context
-        context_mask = Tools.get_mask_via_len(context_len, op.context_max_len)  # [B,1,L]
+       
+        context_mask = Tools.get_mask_via_len(context_len, op.context_max_len) 
         context_hidden = self.main_encoder(context, context_mask)
 
-        # related_movies
+        
         related_movies = one_hot_scatter(related_movies,self.n_topic_vocab)
         related_movies_mask = Tools.get_mask_via_len(related_movies_len,op.movie_num)
         related_movies_hidden = self.p_encoder(related_movies,related_movies_mask)
 
-        # union
+       
         src_hidden = torch.cat([m_hidden,l_hidden,context_hidden,tp_path_hidden],1)
         src_mask = torch.cat([m_mask,l_mask,context_mask,tp_mask],2)
 
         action_mask = Tools.get_mask_via_len(ar_gth_len,op.action_num)
         if mode == 'train':
-            # train
+            
             seq_gth = ar_gth[:,[0]]
             ar_mask = action_mask[:,:,[0]]
             dec_output = Tools._single_decode(seq_gth.detach(), src_hidden, src_mask, self.a_decoder, ar_mask)
             prob = self.proj(dec_out=dec_output, src_hidden=src_hidden, src_mask=src_mask,
                              tp=tp_path, m=m, l=l, context=context,related_movies=related_movies)
-            # prob = self.gen_proj_1(dec_output)
-            # prob = torch.cat([self.pad,prob],-1)
+           
             return prob
 
         else:
@@ -103,18 +96,15 @@ class Action(nn.Module):
             dec_output = Tools._single_decode(seq_gen.detach(), src_hidden, src_mask, self.a_decoder,ar_mask)
             prob = self.proj(dec_out=dec_output, src_hidden=src_hidden, src_mask=src_mask,
                              tp=tp_path, m=m, l=l, context=context,related_movies=related_movies)
-            # prob = self.gen_proj_1(dec_output)
-            # prob = torch.cat([self.pad, prob], -1)
-            word = torch.argmax(prob, -1)  # [B,1]
-            return word, prob  # [B,L]   [B,L,V]
+           
+            word = torch.argmax(prob, -1) 
+            return word, prob 
 
     def proj(self,dec_out, src_hidden,src_mask, tp, m, l, context,related_movies ):
-        '''
-        src_hidden = torch.cat([m_hidden,l_hidden,context_hidden,tp_path_hidden],1)
-        '''
+        
         B,L_a =dec_out.size(0), dec_out.size(1)
 
-        # generation  [B,L,V]
+        
         gen_logit = self.gen_proj(dec_out)
 
         copy_logit = torch.bmm(dec_out, src_hidden.permute(0, 2, 1))
@@ -125,43 +115,40 @@ class Action(nn.Module):
         if op.scale_prj:
             logits *= self.hidden_size ** -0.5
 
-        # logits -> probs
+        
         probs = torch.softmax(logits, -1)
 
-        # generation [B,L_a,V]
+        
         gen_prob = probs[:, :, :self.n_topic_vocab]
 
-        # preference
+        
         copy_m = probs[:, :, self.n_topic_vocab :
                               self.n_topic_vocab + op.preference_num]
         copy_m_prob = torch.bmm(copy_m, m)
 
-        # profile
+       
         copy_l = probs[:, :, self.n_topic_vocab + op.preference_num:
                              self.n_topic_vocab + op.preference_num + op.profile_num]
         copy_l_prob = torch.bmm(copy_l, l)
 
-        # context
+       
         copy_context_prob = probs[:, :, self.n_topic_vocab + op.preference_num + op.profile_num:
                                         self.n_topic_vocab + op.preference_num + op.profile_num + op.context_max_len]
-        transfer_context_word = torch.gather(self.glo2loc.unsqueeze(0).expand(B, -1), 1, context)  # glo_idx to loc_idx
+        transfer_context_word = torch.gather(self.glo2loc.unsqueeze(0).expand(B, -1), 1, context) 
         copy_context_temp = copy_context_prob.new_zeros(B, L_a, self.n_topic_vocab)
         copy_context_prob = copy_context_temp.scatter_add(dim=2,
                                                           index=transfer_context_word.unsqueeze(1).expand(-1, L_a, -1),
                                                           src=copy_context_prob)
 
-        # topic path
+        
         copy_tp = probs[:,:,self.n_topic_vocab + op.preference_num + op.profile_num + op.context_max_len:
                             self.n_topic_vocab + op.preference_num + op.profile_num + op.context_max_len + op.state_num]
         copy_tp_prob = torch.bmm(copy_tp, tp)
 
-        # related_movie
-        # copy_relation = probs[:,:,self.n_topic_vocab + op.preference_num + op.profile_num + op.context_max_len + op.state_num:]
-        # copy_relation = torch.bmm(copy_relation,related_movies)
-
+        
         probs = gen_prob + copy_m_prob + copy_l_prob + copy_context_prob + copy_tp_prob
         probs = probs.mul(self.mask)
-        # probs = torch.bmm(probs,self.graph)
+        
         norm = torch.sum(probs,-1)
         norm = norm.unsqueeze(1)
         probs/=norm
@@ -169,22 +156,18 @@ class Action(nn.Module):
         return probs
 
 def get_movie_rep(related_movies,related_movies_mask,relations,relations_len,p_encoder,movie_num):
-    '''
-    related_movies : [B,L]  相关的电影数量
-    related_movies_mask : [B,1,100]
-    return: [B,L,H]  电影的表示
-    '''
+    
     mask = None
     topics = None
     masks = None
     for i in range(movie_num):
-        related_movie = related_movies[:,i]  # [B,]
+        related_movie = related_movies[:,i]  
         movie_mask = related_movies_mask[:,:,i]
-        movie_topic_mask = movie_mask.unsqueeze(-1).expand(-1,-1,op.tag_num) # B,1,3
-        related_topics = relations[related_movie,:op.tag_num]   # B , 3
+        movie_topic_mask = movie_mask.unsqueeze(-1).expand(-1,-1,op.tag_num) 
+        related_topics = relations[related_movie,:op.tag_num]   
         topics_len = relations_len[related_movie]
-        topics_mask = Tools.get_mask_via_len(topics_len,op.tag_num)  # B,1,3
-        topic_mask = movie_topic_mask & topics_mask  # B,1,3
+        topics_mask = Tools.get_mask_via_len(topics_len,op.tag_num)  
+        topic_mask = movie_topic_mask & topics_mask
 
         related_movie = related_movie.unsqueeze(-1)
         movie_mask = movie_mask.unsqueeze(-1)

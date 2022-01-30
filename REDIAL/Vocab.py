@@ -20,7 +20,7 @@ class Vocab(object):
         self.topic_vocab = topic_vocab
 
     def get_vocab(self):
-        # topic 词表
+        
 
         RESERVED_WORDS = [ option.PAD_WORD,option.BOS_PRE, option.BOS_PRO,
                            option.UNK_WORD,option.BOS_ACTION]
@@ -32,7 +32,7 @@ class Vocab(object):
         topic_vocab = topic_vocab + RESERVED_WORDS
         topic_len = len(topic_vocab)
 
-        # word 词表
+      
         RESERVED_WORDS_1 = [option.PAD_WORD,option.UNK_WORD,option.SENTENCE_SPLITER,
                             option.BOS_RESPONSE,option.EOS_RESPONSE]
         word_vocab = []
@@ -151,7 +151,7 @@ class Vocab(object):
             related_topics = self.topic2index(related_topics)
             relations[i, related_topics] = 1.0
         relations = relations.cuda()
-        relations[:, 0] = 0.0  # pad
+        relations[:, 0] = 0.0  
         relations = relations.unsqueeze(0).expand(option.batch_size, -1, -1)
         return relations
 
@@ -163,16 +163,13 @@ class Vocab(object):
             related_topics = []
             if movie in movie2topic:
                 related_topics = movie2topic[movie]
-            # related_topics, related_topics_len = clip_pad_sentence(related_topics, option.relation_num)
+            
             related_topics = self.topic2index(related_topics)
-            # relations.append(related_topics)
-            # relations_length.append(related_topics_len)
+          
             relations[i,related_topics] = 1.0
 
-        # relations_length = torch.tensor(relations_length).cuda()
-        # relations = torch.tensor(relations).cuda()
         relations = relations.cuda()
-        relations[:,0] = 0.0  # pad
+        relations[:,0] = 0.0  
         relations = relations.unsqueeze(0).expand(option.batch_size,-1,-1)
 
         return relations, relations_length

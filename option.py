@@ -3,18 +3,18 @@ import torch
 class option():
 
 
-    # main encoder decoder option
+    
 
 
     n_layers=6
     n_position = 160
 
-    # state tracker & policy network option
+    
     n_inner_vocab = 5000
     n_inner_layers = 3
     n_inner_position = 15
 
-    # shared encoder decoder option
+    
     d_word_vec = 512
     n_head = 8
     d_k = 64
@@ -25,29 +25,14 @@ class option():
     dropout = 0.1
     n_warmup_steps = 2000
     scale_emb = False
-    switch_interval = 16  # 4 times $gradient_stack$
+    switch_interval = 16 
 
-    # *** data configuration ***
+    
     cache_turn = 0
-    intention_dict = {"c": 0,  # chitchat
-                      "a": 0,  # apprentice
-                      "s": 1,  # ask symptom
-                      "d": 2,  # diagnosis
-                      "m": 3,  # medicine
-                      "t": 3}  # treatment
-    fullname2abbr = {
-        "chitchat": "c",
-        "apprentice_response": "a",
-        "prescribe_medicine": "m",
-        "ask_symptoms": "s",
-        "diagnosis_disease": "d",
-        "diagnosis_treatment": "t"
-    }
-    # remove the unused turn
-    discourse_type = "a,s,d,m,t".split(",")
-    discourse_type_set = set(discourse_type)
+    
+    
 
-    # *** input data & output data configuration***
+   
     context_max_len = 200
     r_max_len = 50
     r_beam_max_len = 30
@@ -70,49 +55,35 @@ class option():
     state_token = 40
 
     scale_prj = True
-    # seq_logit *= self.d_model ** -0.5
+    
     epoch = 100
-    # if VO.scale_prj:
-    #     logits *= VO.d_model ** -0.5
+    
 
-    # for input filename
+   
     task = "meddg"
-    # dialogue sessions
+    
     dataset_file = "dataset/{dataset}.zip"
-    # topic
+    
     topic_file = "./dataset/topic_only.txt"
     movie_file = "./dataset/movie_only.txt"
     topic_redial = "./dataset/topic_redial_dbpedia.txt"
     topic_movie_file = "./dataset/topics_allmovie.txt"
-    # topic_file = r"C:\Users\Administrator\Desktop\res\topics.txt"
-    # profile
+   
     profile_file="./dataset/user2TopicSent.pkl"
-    # movie file
-
-    # vocab
+    
     vocab_file="./dataset/vocab_1.txt"
     vocab_movie_file = "./dataset/vocab_3.txt"
     vocab_redial = "./dataset/vocab_redial_dbpedia.txt"
-    # vocab_file = r"C:\Users\Administrator\Desktop\res\vocab.txt"
-    # special words
+   
     special_words_file = './dataset/topics.txt'
-    #  special_words_file = r"C:\Users\Administrator\Desktop\res\topics.txt"
-    # for output filename
+   
     test_filename_template = "data/cache/{model}/{uuid}/{epoch}-{global_step}-{mode}-{metric}.txt"
     ckpt_filename_template = "data/ckpt/{model}/{uuid}/{epoch}-{global_step}-{metric}.model.ckpt"
 
     vocab_size = 30000
     inner_vocab_size = 10000
 
-    #@staticmethod
-    # def update_device(device_id):
-    #     if device_id < 0:
-    #         return
-    #     else:
-    #         os.environ["CUDA_VISIBLE_DEVICES"] = "{}".format(device_id)
-    #         VRBotOption.device = torch.device("cuda:{}".format(0))
-
-    # ablation
+   
     no_action_super = None
     max_patience = 20
     log_loss_interval = 100
@@ -138,7 +109,7 @@ class option():
     tau_decay_rate = 0.5
     beam_width = 5
 
-    # Ablation Study
+
     wo_l = False
     wo_m = False
     wo_entropy_restrain = False
@@ -152,7 +123,7 @@ class option():
     batch_size = 16
     reg_lambda = 5e-3
 
-    # special token
+
 
     BOS_CONTEXT = "[s_context]"
     EOS_CONTEXT = "[/s_context]"

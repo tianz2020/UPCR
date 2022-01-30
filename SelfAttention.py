@@ -14,16 +14,10 @@ class SelfAttention(nn.Module):
         nn.init.kaiming_normal_(self.b)
 
     def forward(self, hiddens, mask):
-        """
-
-        :param hiddens:     torch.FloatTensor shaped of [B, L, H]
-        :param mask:        torch.BoolTensor  shaped of [B, 1, L]
-        :return:
-        """
         B = hiddens.size(0)
         w_sa = self.w_sa.expand(B, -1, -1)  # B, H, H
         b = self.b.expand(B, -1, -1)  # B, 1, H
-        logits = torch.bmm(b, F.tanh(torch.bmm(hiddens, w_sa).permute(0, 2, 1)))  # B, 1, L
+        logits = torch.bmm(b, F.tanh(torch.bmm(hiddens, w_sa).permute(0, 2, 1)))  
         logits.masked_fill_(torch.logical_not(mask), -1e9)
         probs = torch.softmax(logits, -1)
 

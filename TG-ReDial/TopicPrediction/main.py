@@ -5,9 +5,7 @@ import pickle
 from DataProcessor import DataSet
 from get_logger  import get_logger
 from get_logger  import task_uuid
-# from DataLoader1 import DataLoader
 from Vocab import  Vocab
-# from excrsTopic import ExcrsTopic,EngineTopic
 from excrsTopicPretrain import ExcrsTopic,EngineTopic
 from DataLoaderTopicPretrain import DataLoaderTopicPretrain
 
@@ -41,13 +39,13 @@ def config():
     parser.add_argument("--wo_rl", action="store_true", help="without reinforcement learning")
     parser.add_argument("--hungary", action="store_true")
 
-    # train epochs
+   
     parser.add_argument("--s_train", type=int, default=2, help="state train epoch number")
     parser.add_argument("--a_train", type=int, default=40, help="action train epoch number")
     parser.add_argument("--rl_train", type=int, default=5, help="rl train epoch number")
 
-    # hyper-lambda
-    parser.add_argument("--scl", type=float, default=5.0)  # state copy lambda
+    
+    parser.add_argument("--scl", type=float, default=5.0)  
     parser.add_argument("--acl", type=float, default=5.0)
 
     parser.add_argument('--log_path',default=r'C:\Users\Administrator\Desktop\mywork_log\{}.log',type=str,required=False,help='训练日志存放位置')
@@ -58,34 +56,19 @@ def config():
     parser.add_argument("-vocab_path","--vocab_path",type=str,default=r"C:\Users\Administrator\Desktop\TG_data\vocab.txt",help='用于初始化分词器的字典')
     parser.add_argument("--processed", type=bool, default=True, help='数据是否已经预处理')
     args = parser.parse_args()
-    #option_update(args)
-    #log_config()
+    
     return args
 
 
 def main():
     random.seed(1234)
     args = config()
-    # 数据预处理
+    
     main_logger.info("preparing data")
     dataset = DataSet(args=args)
     train, valid, test, users, user_cont = dataset.get_dialog()
 
     vocab = Vocab()
-
-    # with open('./dataset/train_topic_1214.pkl', 'wb+') as f:
-    #    pickle.dump(train,f)
-    #
-    # with open('./dataset/valid_topic_1214.pkl', 'wb+') as f1:
-    #    pickle.dump(valid,f1)
-    #
-    # with open('./dataset/test_topic_1214.pkl', 'wb+') as f2:
-    #    pickle.dump(test,f2)
-
-    # all = train + test
-    # dataloader = DataLoaderTopicPretrain(all,vocab)
-    # for d in dataloader:
-    #     print(1)
 
     random.shuffle(train)
     excrs_topic = ExcrsTopic(vocab=vocab,user_cont=user_cont)

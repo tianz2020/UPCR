@@ -46,7 +46,7 @@ def config():
     parser.add_argument("--rl_train", type=int, default=5, help="rl train epoch number")
 
     # hyper-lambda
-    parser.add_argument("--scl", type=float, default=5.0)  # state copy lambda
+    parser.add_argument("--scl", type=float, default=5.0)  
     parser.add_argument("--acl", type=float, default=5.0)
 
     parser.add_argument('--log_path',default=r'C:\Users\Administrator\Desktop\mywork_log\{}.log',type=str,required=False,help='训练日志存放位置')
@@ -57,45 +57,22 @@ def config():
     parser.add_argument("-vocab_path","--vocab_path",type=str,default=r"C:\Users\Administrator\Desktop\TG_data\vocab.txt",help='用于初始化分词器的字典')
     parser.add_argument("--processed", type=bool, default=True, help='数据是否已经预处理')
     args = parser.parse_args()
-    #option_update(args)
-    #log_config()
+   
     return args
 
 
 def main():
     random.seed(1234)
     args = config()
-    # 数据预处理
+   
     main_logger.info("preparing data")
     dataset = DataSet(args=args)
     train, valid, test, users, user_cont = dataset.get_dialog()
     vocab = Vocab()
 
-    # with open('./dataset/train_movie_1127.pkl', 'wb+') as f:
-    #    pickle.dump(train,f)
-
-    # with open('./dataset/valid_movie_1127.pkl', 'wb+') as f1:
-    #    pickle.dump(valid,f1)
-
-    # with open('./dataset/test_movie_1127.pkl', 'wb+') as f2:
-    #    pickle.dump(test,f2)
-
-    # all = train + test
-    # dataloader = DataLoaderRec(test,vocab)
-    # for d in dataloader:
-    #     pass
-    #
-    # print(dataloader.num)
-    # print(dataloader.num_1)
 
     topic_graph = json.load(open('./dataset/graph_rec_full.json'))
-    # graph = json.load(open('./dataset/topic2movie.json'))
-    # for topic,relations in tqdm(topic_graph.items()):
-    #     origin = graph[topic]
-    #     for t in origin:
-    #         if t not in relations:
-    #             topic_graph[topic] = topic_graph[topic] + [t]
-
+  
 
     for topic,relations in topic_graph.items():
         shuffle(topic_graph[topic][0:400])
@@ -105,7 +82,7 @@ def main():
     random.shuffle(train)
     excrs = Excrs_allvocab(vocab=vocab,user_cont=user_cont)
     engine = Engine_allvocab(model=excrs,vocab=vocab)
-    # engine.test(test,'test')
+   
     engine.train(train,test)
 
 

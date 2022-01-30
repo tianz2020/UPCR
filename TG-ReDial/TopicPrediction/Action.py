@@ -22,7 +22,7 @@ class Action(nn.Module):
         self.glo2loc = glo2loc
         self.loc2glo = loc2glo
         self.gen_proj = nn.Sequential(nn.Linear(self.hidden_size,self.n_topic_vocab))
-        # self.graph = self.vocab.get_topic_relations()
+        
 
     def forward(self,
                 m,
@@ -34,13 +34,7 @@ class Action(nn.Module):
                 tp_path,tp_path_len,
                 mode,
                 context_hidden=None):
-        '''
-        m :                 [B,L_m,V]
-        l:                  [B,L_l,V]
-        related topics :    [B,L]
-        related_topics_len: [B,]
-        turn:               [B,1]
-        '''
+      
 
         if mode == 'test':
             m = one_hot_scatter(m, self.n_topic_vocab)
@@ -48,11 +42,11 @@ class Action(nn.Module):
 
         # preference
         m_mask = m.new_ones(m.size(0),1,m.size(1))
-        m_hidden = self.p_encoder(m,m_mask)  # [B,L,H]
+        m_hidden = self.p_encoder(m,m_mask) 
 
         # profile
         l_mask = l.new_ones(l.size(0),1,l.size(1))
-        l_hidden = self.p_encoder(l,l_mask)  # [B,L,H]
+        l_hidden = self.p_encoder(l,l_mask)  
 
         # related topics
         related_topics = one_hot_scatter(related_topics,self.n_topic_vocab)
@@ -76,7 +70,7 @@ class Action(nn.Module):
         src_mask = torch.cat([m_mask,l_mask,tp_mask,context_mask,related_topics_mask],2)
 
         # init
-        probs = None  # [B,1,V]
+        probs = None  
         action_mask = Tools.get_mask_via_len(ar_gth_len, op.action_num)
 
         if mode == 'train':
@@ -101,7 +95,7 @@ class Action(nn.Module):
                     seq_gen = torch.cat([seq_gen,ar_gth[:,i:i+1]],1 )
                 ar_mask = action_mask[:, :, 0:i + 1]
                 dec_output = Tools._single_decode(seq_gen.detach(), src_hidden, src_mask, self.a_decoder,ar_mask)
-                single_step_prob = self.proj(dec_output,src_hidden,src_mask,m,l,context,tp_path,related_topics)  # [B,1,V]
+                single_step_prob = self.proj(dec_output,src_hidden,src_mask,m,l,context,tp_path,related_topics) 
                 if i == 0:
                     probs = single_step_prob
                 else:
@@ -109,19 +103,16 @@ class Action(nn.Module):
                 single_step_word = torch.argmax(single_step_prob, -1)  # [B,1]
                 seq_gen = torch.cat([seq_gen,single_step_word],1)
 
-            return seq_gen, probs  # [B,L]   [B,L,V]
+            return seq_gen, probs 
 
     def proj(self,dec_out,src_hidden,src_mask,pv_m,l,context,tp,related_topics):
-        '''
-        src_hidden = torch.cat([m_hidden,l_hidden,tp_hidden,context_hidden],1)
-        src_hidden = torch.cat([m_hidden,l_hidden,context_hidden,tp_hidden,related_topic_hidden],1)
-        '''
+       
         B, L_a = dec_out.size(0), dec_out.size(1)
 
-        # generation  [B,L,V]
+        
         gen_logit = self.gen_proj(dec_out)
 
-        # copy from context , m , l , state
+       
         copy_logit = torch.bmm(dec_out, src_hidden.permute(0, 2, 1))
         copy_logit = copy_logit.masked_fill((src_mask == 0).expand(-1, L_a, -1), -1e9)
         logits = torch.cat([gen_logit, copy_logit], -1)
@@ -129,20 +120,19 @@ class Action(nn.Module):
         if op.scale_prj:
             logits *= self.hidden_size ** -0.5
 
-        # logits -> probs
+        
         probs = torch.softmax(logits, -1)
-        # generation [B,L_a,V]
+        
         gen_prob = probs[:, :, :self.n_topic_vocab]
 
         # copy from preference
         copy_m_prob =probs[:,:,self.n_topic_vocab :
                                self.n_topic_vocab + op.preference_num]
-        copy_m_prob = torch.bmm(copy_m_prob,pv_m) # [B,L,V]
-
+        copy_m_prob = torch.bmm(copy_m_prob,pv_m) 
         # copy from profile
         copy_l_prob = probs[:, :, self.n_topic_vocab + op.preference_num:
                                   self.n_topic_vocab + op.preference_num + op.profile_num]
-        copy_l_prob = torch.bmm(copy_l_prob, l)  # [B,L,V]
+        copy_l_prob = torch.bmm(copy_l_prob, l)  
 
         # copy from context
         copy_context_prob = probs[:, :, self.n_topic_vocab + op.preference_num + op.profile_num + op.state_num:
@@ -155,7 +145,7 @@ class Action(nn.Module):
         # copy from topic path
         copy_tp_prob = probs[:, :, self.n_topic_vocab + op.preference_num + op.profile_num :
                                     self.n_topic_vocab + op.preference_num + op.profile_num + op.state_num]
-        copy_tp_prob = torch.bmm(copy_tp_prob,tp)  # [B,L,V]
+        copy_tp_prob = torch.bmm(copy_tp_prob,tp)  
 
         # copy from related topics
         copy_relation_prob = probs[:,:,self.n_topic_vocab + op.preference_num + op.profile_num + op.context_max_len + op.state_num:]
@@ -167,30 +157,20 @@ class Action(nn.Module):
 
 
     def get_movie_rep(self,related_movies,related_movies_mask,p_encoder,relations,relations_len,movie_length):
-        '''
-        related_movies : [B,L]  相关的电影数量
-        related_movies_mask : [B,1,100]
-        return: [B,L,H]  电影的表示
-        '''
+        
         movie_rep = None
         for i in range(movie_length):
-            related_movie = related_movies[:,i]  # [B,]
+            related_movie = related_movies[:,i]  
             movie_mask = related_movies_mask[:,:,i]
-            movie_topic_mask = movie_mask.unsqueeze(-1).expand(-1,-1,op.relation_num) # B,1,10
-            related_topics = relations[related_movie,:]   # B ,relation_num
+            movie_topic_mask = movie_mask.unsqueeze(-1).expand(-1,-1,op.relation_num)
+            related_topics = relations[related_movie,:]   
             topics_len = relations_len[related_movie]
-            topics_mask = Tools.get_mask_via_len(topics_len,op.relation_num)   # B,1,10
-            topic_mask = movie_topic_mask & topics_mask  # B,1,10
-            # movie_mask = movie_mask.unsqueeze(-1)
-            # mask = torch.cat([movie_mask,topic_mask],2)
-            # movie = related_movie.unsqueeze(-1)
-            # input = torch.cat([movie,related_topics],1)
+            topics_mask = Tools.get_mask_via_len(topics_len,op.relation_num)  
+            topic_mask = movie_topic_mask & topics_mask 
+            
 
-            # hidden = p_encoder(input,mask)
-            # movie_hidden = hidden[:,0:1,:]
-
-            topic_hidden = p_encoder(related_topics,topic_mask)    # B,10,512
-            movie_hidden = torch.mean(topic_hidden,1).unsqueeze(1)  # B,1,512
+            topic_hidden = p_encoder(related_topics,topic_mask)    
+            movie_hidden = torch.mean(topic_hidden,1).unsqueeze(1)  
 
             if movie_rep is None:
                 movie_rep = movie_hidden
@@ -207,30 +187,20 @@ def one_hot_scatter(indice, num_classes, dtype=torch.float):
     return placeholder
 
 def get_movie_rep(related_movies,related_movies_mask,p_encoder,relations,relations_len,movie_num):
-    '''
-    related_movies : [B,L]  相关的电影数量
-    related_movies_mask : [B,1,100]
-    return: [B,L,H]  电影的表示
-    '''
-
-    '''
-    related_movies : [B,L]  相关的电影数量
-    related_movies_mask : [B,1,100]
-    return: [B,L,H]  电影的表示
-    '''
+    
     movie_rep = None
     mask = None
     for i in range(movie_num):
-        related_movie = related_movies[:,i]  # [B,]
+        related_movie = related_movies[:,i]  
         movie_mask = related_movies_mask[:,:,i]
-        movie_topic_mask = movie_mask.unsqueeze(-1).expand(-1,-1,op.tag_num) # B,1,3
-        related_topics = relations[related_movie,:op.tag_num]   # B , 3
+        movie_topic_mask = movie_mask.unsqueeze(-1).expand(-1,-1,op.tag_num) 
+        related_topics = relations[related_movie,:op.tag_num] 
         topics_len = relations_len[related_movie]
-        topics_mask = Tools.get_mask_via_len(topics_len,op.tag_num)  # B,1,3
-        topic_mask = movie_topic_mask & topics_mask  # B,1,3
+        topics_mask = Tools.get_mask_via_len(topics_len,op.tag_num)  
+        topic_mask = movie_topic_mask & topics_mask  
 
-        topic_hidden = p_encoder(related_topics,topic_mask)    # B,3,512
-        # movie_hidden = torch.mean(topic_hidden,1).unsqueeze(1)  # B,1,512
+        topic_hidden = p_encoder(related_topics,topic_mask)   
+       
 
         if movie_rep is None:
             movie_rep = topic_hidden

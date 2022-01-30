@@ -22,9 +22,6 @@ from DataLoaderRec import  DataLoaderRec
 import math
 import sys
 
-# conda activate mywork
-# cd /data/tianzhi-slurm/code/mycode/myWork/
-
 
 class Excrs_allvocab(nn.Module):
     def __init__(self,vocab:Vocab,user_cont,n_layers=6,p_layers=3,
@@ -38,7 +35,7 @@ class Excrs_allvocab(nn.Module):
         self.glo2loc = torch.tensor(self.glo2loc).cuda()
         self.loc2glo = torch.tensor(self.loc2glo).cuda()
         self.topic_num = vocab.topic_num()
-        # 这里面这个topic是包括topic和movie的
+        
         self.word_vocab, self.word_len, self.topic_vocab, self.topic_len,self.movie_vocab, self.movie_len = vocab.get_vocab()
         self.word_pad_idx = vocab.get_word_pad()
         self.topic_pad_idx = vocab.get_topic_pad()
@@ -57,12 +54,12 @@ class Excrs_allvocab(nn.Module):
 
         self.word_emb = nn.Embedding(self.word_len,d_word_vec,padding_idx=self.word_pad_idx)
         self.topic_emb = nn.Embedding(self.topic_len,d_word_vec,padding_idx=self.topic_pad_idx)
-        # self.movie_emb = nn.Embedding(self.movie_len,d_word_vec,padding_idx=self.topic_pad_idx)
+        
         self.user_emb = nn.Embedding(user_cont,d_word_vec)
         self.gumbel_softmax = GumbelSoftmax()
         self.global_step = 0
 
-        #  encode U_t, context, conversation
+        
         self.main_tfr_encoder = Encoder(
             n_src_vocab=self.word_len, n_position=op.conv_max_len,
             d_word_vec=d_word_vec, d_model=d_model, d_inner=d_inner,
@@ -71,7 +68,7 @@ class Excrs_allvocab(nn.Module):
             word_emb=self.word_emb
         )
 
-        # encode user id
+       
         self.u_tfr_encoder4p = Encoder(
             n_src_vocab=user_cont, n_position=1,
             d_word_vec=d_word_vec, d_model=d_model, d_inner=d_inner,
@@ -88,16 +85,9 @@ class Excrs_allvocab(nn.Module):
             word_emb=self.user_emb
         )
 
-        # encode graph
-
-        # self.graph_econder = graphencoder(topics_num=self.topic_num,d_topic_vec=DO.trans_embed_dim,d_model=DO.trans_embed_dim,
-        #                                d_inner=TRO.dimension_hidden,n_layers=TRO.topic_num_layers,n_head=TRO.num_head,
-        #                                d_k=TRO.dimension_key,d_v=TRO.dimension_val,dropout=TRO.dropout,
-        #                                embedding=self.topic_emb)
-        #
-        # self.kg = knowledgeGraph(self.vocab, self.graph_econder).cuda()
+       
         self.kg = None
-        # for prior profile,preference
+        
         self.p_tfr_encoder4p = Encoder(
             n_src_vocab=self.topic_len, n_position=200,
             d_word_vec=d_word_vec, d_model=d_model, d_inner=d_inner,
@@ -121,7 +111,7 @@ class Excrs_allvocab(nn.Module):
             word_emb=self.topic_emb
         )
 
-        # for posterior profile,preference
+        
         self.p_tfr_encoder4q = Encoder(
             n_src_vocab=self.topic_len, n_position=200,
             d_word_vec=d_word_vec, d_model=d_model, d_inner=d_inner,
@@ -144,7 +134,7 @@ class Excrs_allvocab(nn.Module):
             word_emb=self.topic_emb
         )
 
-        # decode action
+       
         self.a_tfr_decoder = Decoder(
             n_trg_vocab=self.topic_len, n_position=op.action_num,
             d_word_vec=d_word_vec, d_model=d_model, d_inner=d_inner,
@@ -153,7 +143,7 @@ class Excrs_allvocab(nn.Module):
             word_emb=self.topic_emb
         )
 
-        # 1.profile       prior input:[Uid]    posterior input:[Uid,session]    output:distribution over topics
+        
         if op.wo_l:
             self.p_l = None
             self.q_l = None
@@ -170,13 +160,7 @@ class Excrs_allvocab(nn.Module):
                                     gs=self.gumbel_softmax,ts=self.pro_tau_scheduler,
                                     glo2loc=self.glo2loc,loc2glo=self.loc2glo).cuda()
 
-        # 2.user Intention  input:[Ut]   output:action
-        # self.Usr_Intention = UserIntention(encoder=self.main_tfr_encoder,decoder=self.a_tfr_decoder,
-        #                                    hidden_size=d_model,n_vocab=self.word_len,n_topic_vocab=self.topic_len,
-        #                                    bos_idx=self.a_bos_idx,max_len=op.action_num,glo2loc=self.glo2loc,
-        #                                    loc2glo=self.loc2glo).cuda()
-
-        # 3.preference
+       
         if op.wo_m:
             self.p_mt = None
             self.q_mt = None
@@ -194,18 +178,13 @@ class Excrs_allvocab(nn.Module):
                                          max_seq_len=op.preference_num,gs=self.gumbel_softmax,glo2loc=self.glo2loc,
                                          loc2glo=self.loc2glo,ts=self.pre_tau_scheduler).cuda()
 
-        # 4.action   input:[Rt-1Ut,pro,pre,kg]   output:action
+        
         self.action = Action(p_encoder=self.p_tfr_encoder4p,main_encoder=self.main_tfr_encoder,m_encoder=self.m_tfr_encoder4p,
                              a_decoder=self.a_tfr_decoder,graphencoder=self.kg,hidden_size=d_model,
                              n_topic_vocab=self.topic_len,n_movie_vocab=self.movie_len,bos_idx=self.a_bos_idx,vocab=self.vocab,
                              max_len=op.action_num,glo2loc=self.glo2loc,loc2glo=self.loc2glo).cuda()
 
-        # 5.Response  input:action   output:response
-        # self.response = Response(encoder=self.a_tfr_encoder,decoder=self.main_tfr_decoder,
-        #                          hidden_size=d_model,n_vocab=self.word_len,trg_bos_idx=self.r_bos_idx,
-        #                          trg_eos_idx=self.r_eos_idx,max_seq_len=op.r_max_len,
-        #                          pre_copy_scheduler=self.pre_copy_scheduler,pro_copy_scheduler=self.pro_copy_scheduler,
-        #                          beam_width=beam_width,loc2glo=self.loc2glo).cuda()
+      
 
     def forward(self,
                 user_id,
@@ -232,38 +211,18 @@ class Excrs_allvocab(nn.Module):
 
         if mode == 'train':
 
-            # user profile
-            # 第一个返回值用来计算loss,第二个返回值用来采样
+           
             p_l, p_l_gumbel = self.p_l.forward(id=user_id)
             q_l, q_l_gumbel = self.q_l.forward(id=user_id, topics=all_topic, topics_len=all_topic_len)
 
-            # user intention  [B,L_i,V]
-            # au = self.Usr_Intention.forward(Ut=Ut, Ut_len=Ut_len, au_gth=au_gth,au_gth_len= au_gth_len, mode='train')
-
-            # user preference
+            
             p_m, p_m_gumbel = self.p_mt.forward(context=context, context_len=context_len,pv_m=pv_m,pv_m_mask=pv_m_mask,
                                                 tp_path=tp_path,tp_path_len=tp_path_len)
             q_m, q_m_gumbel = self.q_mt.forward(context=context, context_len=context_len,pv_m=pv_m,
                                                 pv_m_mask=pv_m_mask,ar_gth=ar_gth,ar_gth_len=ar_gth_len,
                                                 tp_path=tp_path,tp_path_len=tp_path_len)
 
-            # if self.global_step % 1000 == 0:
-            #     print("p_l_gumbel")
-            #     print(torch.argmax(p_l_gumbel, -1))
-            #     print("q_l_gumbel:")
-            #     print(torch.argmax(q_l_gumbel, -1))
-            #     print("p_m_gumbel")
-            #     print(torch.argmax(p_m_gumbel,-1))
-            #     print("q_m_gumbel:")
-            #     print(torch.argmax(q_m_gumbel,-1))
-            #     print("ar_gth")
-            #     print(ar_gth)
-            #     print("----------------------------------------------")
-            #     print("----------------------------------------------")
-            #     print("----------------------------------------------")
-
-
-            # action
+           
             ar = self.action.forward(m=q_m_gumbel,
                                      l=q_l_gumbel,
                                      context=context,
@@ -273,24 +232,20 @@ class Excrs_allvocab(nn.Module):
                                      related_movies=related_movies,related_movies_len=related_movies_len,
                                      mode='train')
 
-            # response
-            # resp = self.response.forward(ar=ar_gth, ar_len=ar_gth_len, context=context,context_hidden=context_hidden,
-            #                             context_mask=context_mask, resp_gth=resp_gth, resp_gth_len=resp_gth_len)
+            
             self.global_step += 1
             return p_l, q_l, None, p_m, q_m, ar, None, q_m_gumbel
 
         else:
-            # user profile
+            
             p_l = self.p_l.forward(id=user_id)
 
-            # user intention   return : [B,L]
-            # au = self.Usr_Intention.forward(Ut=Ut, Ut_len=Ut_len, au_gth=au_gth,au_gth_len= au_gth_len, mode='test')
-
-            # user preference
+            
+           
             p_m = self.p_mt.forward(context=context,context_len=context_len,pv_m=pv_m,pv_m_mask=pv_m_mask,
                                     tp_path=tp_path,tp_path_len=tp_path_len)
 
-            # action
+            
             ar,ar_probs = self.action.forward(m=p_m,
                                      l=p_l,
                                      context=context,
@@ -300,17 +255,14 @@ class Excrs_allvocab(nn.Module):
                                      related_movies=related_movies, related_movies_len=related_movies_len,
                                      mode='test')
 
-            # response
-            #resp = self.response.forward(ar=ar, ar_len=ar_gth_len, context=context,context_hidden=context_hidden,
-            #                             context_mask=context_mask, resp_gth=None, resp_gth_len=None)
-
+            
             return None, ar, None,  ar_probs, p_m
 
     def mask_preference(self, pv_m, final):
-        #  [B,L,V]   [B,]   方法测过没问题
+      
         b = range(op.batch_size)
         b = [i + 1 for i in b]
-        # final = final.cpu()
+       
         b = torch.tensor(b).cuda().tolist()
         final = list(final)
         final = [int(i) for i in final]
@@ -327,14 +279,7 @@ class Excrs_allvocab(nn.Module):
 
         pv_m_mask = pv_m.new_ones(pv_m.size(0), 1, pv_m.size(1))
         pv_m_mask[d,:,:] = 0
-        # final = final.unsqueeze(1).unsqueeze(1)
-        # initial = final.expand(-1, pv_m.size(1), -1).expand(-1, -1, pv_m.size(2))
-        # pv_m = pv_m.mul(initial)
-        # pv_m[:, :, self.topic_pad_idx] = 1 - torch.sum(pv_m, -1)
-        #
-        # pv_m_mask = pv_m.new_ones(pv_m.size(0), 1, pv_m.size(1))
-        # initial = final.expand(-1, -1, pv_m.size(1))
-        # pv_m_mask = pv_m_mask.mul(initial)
+        
 
         return pv_m, pv_m_mask
 
@@ -357,7 +302,7 @@ class Engine_allvocab():
         self.optimizer = ScheduledOptim(self.optimizer, 0.5, op.d_model, op.n_warmup_steps)
         self.vocab = vocab
         self.relations, self.relations_len = self.vocab.get_movie_relations()
-        # self.relations, self.relations_len = None,None
+        
         self.topic_pad_idx = self.vocab.topic2index(op.PAD_WORD)
         self.global_step = 0
         self.action_loss = 0
@@ -370,7 +315,7 @@ class Engine_allvocab():
         for e in range(op.epoch):
             print("epoch : {}".format(e))
             train_loader = DataLoaderRec(train_set,self.vocab)
-            # init preference   [B,L_m,V]
+           
             self.pv_m = get_default_tensor([op.batch_size, op.preference_num, self.model.topic_len], torch.float,
                                       pad_idx=self.topic_pad_idx)
             self.optimizer.zero_grad()
@@ -410,15 +355,15 @@ class Engine_allvocab():
                 self.kl_l_loss += kl_l.item()
                 kl_m = kl_loss(p_m, q_m.detach())
                 self.kl_m_loss += kl_m.item()
-                # nll_ui = action_nll(au, au_gth.detach(), self.model.topic_pad_idx)
+                
                 nll_ar = action_nll(ar, a_R.detach(), self.model.topic_pad_idx)
                 self.action_loss += nll_ar.item()
 
-                # nll_r, *_ = nll_loss(resp, resp_idx.detach(), self.model.word_pad_idx)
+               
 
                 p_l_reg, q_l_reg = regularization_loss(p_l), regularization_loss(q_l)
                 p_m_reg, q_m_reg = regularization_loss(p_m), regularization_loss(q_m)
-                # ar_reg = regularization_loss(ar)
+                
                 reg_loss = op.reg_lambda * (p_l_reg + q_l_reg + p_m_reg + q_m_reg )
 
                 loss = 0.3 * kl_m + 0.3 * kl_l + nll_ar + reg_loss
@@ -427,11 +372,10 @@ class Engine_allvocab():
                     print("global_step: {}".format(self.global_step))
                     print("kl_preference: {}".format(self.kl_m_loss / self.model.global_step))
                     print("kl_profile: {}".format(self.kl_l_loss / self.model.global_step))
-                    # self.logger.info("nll_r: {}".format(self.model.resp_loss / self.model.global_step))
-                    # self.logger.info("nll_ui: {}".format(self.model.intention_loss / self.model.global_step))
+                    
                     print("nll_ar: {}".format(self.action_loss / self.model.global_step))
                     sys.stdout.flush()
-                    # self.logger.info("loss: {}".format(self.model.sum_loss / self.model.global_step))
+                    
 
                 loss = loss / float(op.gradient_stack)
                 loss.backward(retain_graph=False)
@@ -452,7 +396,7 @@ class Engine_allvocab():
             if patience==0 and metric['recall@10']>0.032 and metric['recall@50']>0.078:
                 torch.save(self.model,'./rec_no_graph_1.pkl')
                 print("saved : recall@10:{}, recall@50:{}".format(metric['recall@10'],metric['recall@50']))
-            # 释放内存
+            
             del train_loader
             gc.collect()
 
@@ -492,7 +436,7 @@ class Engine_allvocab():
             "count":0
         }
 
-        # init preference   [B,L_m,V]
+      
         self.pv_m = get_default_tensor([op.batch_size, op.preference_num, self.model.topic_len], torch.float,
                                   pad_idx=self.model.topic_pad_idx)
 
@@ -545,21 +489,17 @@ class Engine_allvocab():
         metrics['MRR10'] = round(metrics['MRR10'] / metrics['rec_count'], 4)
         metrics['MRR50'] = round(metrics['MRR50'] / metrics['rec_count'], 4)
         print(metrics)
-        # bleu_1, bleu_2, bleu_3, bleu_4 = Bleu.bleu(res_gen,res_gth)
-        # dist_1, dist_2 = distinct.cal_calculate(res_gen,res_gth)
+        
         self.model.train()
         print('test finished!')
-        # 释放内存
+       
         del dataloader
         gc.collect()
         return metrics
-        # return bleu_1,bleu_2,bleu_3,bleu_4,dist_1,dist_2
+       
 
     def compute_metrics(self,ar_probs, ar_gth, a_R_len, metrics):
-        '''
-        ar_probs  [B,L,V]
-        ar_gth    [B,L]
-        '''
+      
         tanlun = self.vocab.topic2index('谈论')
         qingqiutuijian = self.vocab.topic2index('请求推荐')
 
@@ -589,8 +529,8 @@ class Engine_allvocab():
                     metrics['NDCG{}'.format(k)] += 1.0 / math.log(rank + 2.0, 2)
                     metrics['MRR{}'.format(k)] += 1.0 / (rank + 1.0)
 
-        for i, gt in enumerate(ar_gth):  # 循环每个batch
-            # gt是一个batch的action  [type,topic,type,topic...]
+        for i, gt in enumerate(ar_gth): 
+           
             ar_gen = ar_probs[i,:]
             gt_len = int(a_R_len[i])
             for j in range(0,gt_len,2):
@@ -604,12 +544,12 @@ class Engine_allvocab():
 
 def get_mask_via_len(length, max_len):
     """"""
-    B = length.size(0)  # batch size
+    B = length.size(0)  
     mask = torch.ones([B, max_len]).cuda()
-    mask = torch.cumsum(mask, 1)  # [ [1,2,3,4,5..], [1,2,3,4,5..] .. ] [B,max_len]
+    mask = torch.cumsum(mask, 1) 
     mask = mask <= length.unsqueeze(
-        1)  # [ [True,True,..,Flase],[True,True,..,Flase],..  ] 第一个列表中True的个数为第一个session中的句子长度，后面填充的都是false
-    mask = mask.unsqueeze(-2)  # [B,1,max_len]
+        1) 
+    mask = mask.unsqueeze(-2) 
     return mask
 
 def get_default_tensor(shape, dtype, pad_idx=None):
@@ -619,7 +559,7 @@ def get_default_tensor(shape, dtype, pad_idx=None):
     return pad_tensor
 
 def sparse_prefix_pad(inp, sos_idx):
-    # tensor [B,Ls,V]
+   
 
     n_vocab = inp.size(2)
     pad = inp.new_ones(inp.size(0), 1, dtype=torch.long) * sos_idx
@@ -635,12 +575,7 @@ def one_hot_scatter(indice, num_classes, dtype=torch.float):
     return placeholder
 
 def kl_loss(prior_dist, posterior_dist):
-        """kl loss, 计算的是posterior和prior kl divergence
-        Parameters
-        ------
-        prior_dist:             B, S, K
-        posterior_dist:         B, S, K
-        """
+       
         bias = 1e-24
 
         if (len(prior_dist.shape) >= 3) and op.hungary:
@@ -663,18 +598,7 @@ def kl_loss(prior_dist, posterior_dist):
         return kl_div
 
 def nll_loss(hypothesis, target, pad_id ):
-        """nll  loss
-        Parameters
-        ------
-        hypothesis:         B, T, V
-        target:             B, T
-        pad_id:             bool
-
-        Returns
-        ------
-        nll_loss:           (,)   (Scalar)
-        nll_loss_vector:    B,
-        """
+      
 
         eps = 1e-9
         B, T = target.shape
@@ -704,10 +628,7 @@ def regularization_loss(dist):
         return regularization
 
 def action_nll(hypothesis,target,pad_idx):
-        '''
-        hypothesis : [B,L,V]
-        target  : [B,L]
-        '''
+        
 
         eps = 1e-9
         hypothesis = hypothesis.reshape(-1,hypothesis.size(-1))

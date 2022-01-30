@@ -66,29 +66,13 @@ def config():
 def main():
     random.seed(1234)
     args = config()
-    # 数据预处理
+   
     main_logger.info("preparing data")
     dataset = DataSet(args=args)
     train, valid, test, users, user_cont = dataset.get_dialog()
 
     vocab = Vocab()
 
-    # with open('./dataset/train_rec_redial_dbpedia.pkl', 'wb+') as f:
-    #    pickle.dump(train,f)
-    #
-    # with open('./dataset/valid_rec_redial_dbpedia.pkl', 'wb+') as f1:
-    #    pickle.dump(valid,f1)
-    #
-    # with open('./dataset/test_rec_redial_dbpedia.pkl', 'wb+') as f2:
-    #    pickle.dump(test,f2)
-
-
-    # dataloader = DataLoaderRec(train,vocab)
-    # for d in tqdm(dataloader):
-    #     pass
-    #
-    # print(dataloader.num)
-    # print(dataloader.num_1)
 
     train = train + valid
     random.shuffle(train)

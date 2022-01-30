@@ -21,9 +21,7 @@ def config():
 
 
 def one_hot(indice, num_classes):
-    """
-    one_hot
-    """
+    
     I = torch.eye(num_classes)
     T = I[indice]
     T.requires_grad = False
@@ -41,17 +39,14 @@ class GumbelSoftmax(nn.Module):
         self.reoper = reoper
 
     def forward(self, inp, tau, normed):
-        """forward
-        :param inp: torch.Tensor which is shaped of [B, L, V]
-        :param tau: integer
-        """
+       
         if normed:
-            # 如果已经采用了softmax激活，那么需要添加log，如果未采用softmax，不做处理
+           
             inp = torch.log(inp + self.eps)
 
         if not self.origin_version:
 
-            # gumbel noise
+         
             gk = -torch.log(-torch.log(torch.rand(inp.shape)))
             out = torch.softmax((inp + gk) / tau, dim=-1)
         else:
@@ -75,20 +70,20 @@ class GumbelSoftmax(nn.Module):
                     probs = [index2prob[i] for i in max_index[b]]
                     probs_sum = sum(probs)
                     normalized_probs = [x / probs_sum for x in probs]
-                    # S,
+                   
                     indexs = [find_index(random.random(), normalized_probs) for _ in range(expand_inp.size(2))]
                     batch_selected_indexs.append(indexs)
 
                 B, _, S, T = out.shape
-                flat_out = out.reshape(-1, T)  # B * 10 * S, T
-                indexs = torch.tensor(batch_selected_indexs).reshape(-1)  # B * S
-                # batch_size上存在自由度
+                flat_out = out.reshape(-1, T) 
+                indexs = torch.tensor(batch_selected_indexs).reshape(-1)  
+                
                 indexs = indexs + torch.arange(B).unsqueeze(1).expand(-1, self.reoper).reshape(
                     -1) * self.reoper * S
-                flat_out = flat_out.index_select(0, indexs)  # B * S, T
+                flat_out = flat_out.index_select(0, indexs)  
                 out = flat_out.reshape(B, S, -1)
             else:
-                # 采用original gumbel softmax
+               
                 out = torch.nn.functional.gumbel_softmax(inp, tau=tau)
         return out
 
@@ -119,15 +114,11 @@ class GUMBEL(nn.Module):
         return act_fn
 
     def forward(self, sample):
-        """GUMBEL forward
-        Args
-        ---
-        sample: A tensor shaped of [B, sample_num]
-        """
+       
         sample = sample.cuda()
         sample_embedding = self.embedding_layer(sample)
-        pred = self.pred_layer(sample_embedding)  # B, sample_num
-        # pred_norm = torch.softmax(pred, dim=-1)
+        pred = self.pred_layer(sample_embedding)  
+      
         ret = self.get_act_fn()(pred)
 
         return ret
@@ -182,16 +173,15 @@ def main():
     print("训练之前")
     do_test(model, sample_num)
 
-    # Train
+   
     pbar = tqdm(list(range(train_epoch)))
     print_interval = train_epoch / 10
     for e in pbar:
         sample_index = [random.randint(0, sample_num - 1) for _ in range(batch_size)]
         sample_index = torch.tensor(sample_index).long().cuda()
-        batch_sample = one_hot(sample_index, sample_num)  # B, N
+        batch_sample = one_hot(sample_index, sample_num) 
 
-        pred = model.forward(batch_sample)  # B, N
-        # loss = ((batch_sample.detach() - pred) ** 2).mean()
+        pred = model.forward(batch_sample)  
         loss = torch.nn.functional.nll_loss(torch.log(pred + 1e-24), sample_index)
 
         pbar.set_description("{} : {:.6f}".format(e, loss.item()))
@@ -202,7 +192,7 @@ def main():
         if e % print_interval == 0:
             do_test(model, sample_num)
 
-    # Test
+   
     print("训练之后")
     do_test(model, sample_num)
 
@@ -213,10 +203,10 @@ def do_test(model, sample_num):
     test = list(range(sample_num))
     target = np.asarray(test)
     test = torch.tensor(test).long()
-    test = one_hot(test, sample_num)  # B, sample_num
+    test = one_hot(test, sample_num)
     model.test()
     with torch.no_grad():
-        preds = model(test)  # test : B, sample_num      ret : B,
+        preds = model(test) 
     pred_np = preds.cpu().numpy()
     correct = np.sum(np.asarray(pred_np == target, dtype=np.int))
     model.is_train = True

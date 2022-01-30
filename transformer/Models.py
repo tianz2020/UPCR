@@ -1,10 +1,10 @@
-''' Define the Transformer model '''
+
 import torch
 import torch.nn as nn
 import numpy as np
 from transformer.Layers import EncoderLayer, DecoderLayer
 import ipdb
-__author__ = "Yu-Hsiang Huang"
+
 
 
 def get_pad_mask(seq, pad_idx):
@@ -12,14 +12,11 @@ def get_pad_mask(seq, pad_idx):
 
 
 def get_subsequent_mask(seq):
-    ''' For masking out the subsequent info. '''
+    
     sz_b, len_s = seq.size()
     subsequent_mask = (1 - torch.triu(
         torch.ones((1, len_s, len_s), device=seq.device), diagonal=1)).bool()
-    # tensors like this:
-    # tensor([[[1., 0., 0.],
-    #          [1., 1., 0.],
-    #          [1., 1., 1.]]])
+  
     return subsequent_mask
 
 
@@ -27,31 +24,31 @@ class PositionalEncoding(nn.Module):
 
     def __init__(self, d_hid, n_position=200):
         super(PositionalEncoding, self).__init__()
-        # Not a parameter (应该是和Parameter做区分，第一其不能更新，第二区分于普通的tensor，其可以保存到pkl中)
+        
         self.register_buffer('pos_table', self._get_sinusoid_encoding_table(n_position, d_hid))
 
     @staticmethod
     def _get_sinusoid_encoding_table(n_position, d_hid):
-        ''' Sinusoid position encoding table '''
+        
 
-        # TODO: make it with torch instead of numpy
+        
 
         def get_position_angle_vec(position):
             return [position / np.power(10000, 2 * (hid_j // 2) / d_hid) for hid_j in range(d_hid)]
 
         sinusoid_table = np.array([get_position_angle_vec(pos_i) for pos_i in range(n_position)])
-        sinusoid_table[:, 0::2] = np.sin(sinusoid_table[:, 0::2])  # dim 2i
-        sinusoid_table[:, 1::2] = np.cos(sinusoid_table[:, 1::2])  # dim 2i+1
+        sinusoid_table[:, 0::2] = np.sin(sinusoid_table[:, 0::2])  
+        sinusoid_table[:, 1::2] = np.cos(sinusoid_table[:, 1::2])  
 
         return torch.FloatTensor(sinusoid_table).unsqueeze(0)
 
     def forward(self, x):
-        # register buffer (B, L, E)
+       
         return x + self.pos_table[:, :x.size(1)].clone().detach()
 
 
 class Encoder(nn.Module):
-    ''' A encoder model with self attention mechanism. '''
+    
 
     def __init__(
             self, n_src_vocab, d_word_vec, n_layers, n_head, d_k, d_v,
@@ -78,12 +75,11 @@ class Encoder(nn.Module):
 
         enc_slf_attn_list = []
 
-        # -- Forward
-        # embedding 开始就 dropout 和 layer-norm 了
-        if len(src_seq.shape) == 2:  # 直接对于 one-hot 的 word 进行 embedding
+        
+        if len(src_seq.shape) == 2:  
             enc_output = self.src_word_emb(src_seq)
 
-        elif len(src_seq.shape) == 3:  # 采用概率值来进行 embedding
+        elif len(src_seq.shape) == 3:  
             if src_seq.size(2) == self.d_model:
                 enc_output = src_seq
             else:
@@ -94,10 +90,10 @@ class Encoder(nn.Module):
             raise RuntimeError
         enc_output.cuda()
         if self.scale_emb:
-            enc_output *= self.d_model ** 0.5  # 这里又没有直接接 softmax
+            enc_output *= self.d_model ** 0.5  
 
         enc_output = self.dropout(self.position_enc(enc_output))
-        enc_output = self.layer_norm(enc_output)  # embedding 过后立刻 layer_normal 干啥
+        enc_output = self.layer_norm(enc_output)  
 
         for enc_layer in self.layer_stack:
             enc_output, enc_slf_attn = enc_layer(enc_output, slf_attn_mask=src_mask)
@@ -110,7 +106,7 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    ''' A decoder model with self attention mechanism. '''
+    
 
     def __init__(
             self, n_trg_vocab, d_word_vec, n_layers, n_head, d_k, d_v,
@@ -134,10 +130,10 @@ class Decoder(nn.Module):
         self.d_model = d_model
 
     def forward(self, trg_seq, trg_mask, enc_output, src_mask, return_attns=False):
-        # trg_seq 是 one-hot
+        
         dec_slf_attn_list, dec_enc_attn_list = [], []
 
-        # -- Forward   这一开始在做embedding
+       
         if len(trg_seq.shape) == 2:
             dec_output = self.trg_word_emb(trg_seq)
         elif len(trg_seq.shape) == 3:
@@ -166,7 +162,7 @@ class Decoder(nn.Module):
 
 
 class Transformer(nn.Module):
-    ''' A sequence to sequence model with attention mechanism. '''
+    
 
     def __init__(
             self, n_src_vocab, n_trg_vocab, src_pad_idx, trg_pad_idx,
@@ -193,7 +189,7 @@ class Transformer(nn.Module):
             n_layers=n_layers, n_head=n_head, d_k=d_k, d_v=d_v,
             pad_idx=trg_pad_idx, dropout=dropout, scale_emb=scale_emb)
 
-        # 单纯的从vocabulary中生成，而不进行copy
+        
         self.trg_word_prj = nn.Linear(d_model, n_trg_vocab, bias=False)
 
         for p in self.parameters():
@@ -205,18 +201,14 @@ class Transformer(nn.Module):
              the dimensions of all module outputs shall be the same.'
 
         if trg_emb_prj_weight_sharing:
-            # Share the weight between target word embedding & last dense layer
+            
             self.trg_word_prj.weight = self.decoder.trg_word_emb.weight
 
         if emb_src_trg_weight_sharing:
             self.encoder.src_word_emb.weight = self.decoder.trg_word_emb.weight
 
     def forward(self, src_seq, trg_seq):
-        # 还得去改造啊，因为在 decode state 和 action 的时候没有真正的gth信息
-        # 但是好在长度较短 len(state) = 10; len(action) = 3
-
-        # src_seq: B, L_src
-        # trg_seq: B, L_trg
+        
         src_mask = get_pad_mask(src_seq, self.src_pad_idx)
         trg_mask = get_pad_mask(trg_seq, self.trg_pad_idx) & get_subsequent_mask(trg_seq)
 

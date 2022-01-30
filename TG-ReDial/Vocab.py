@@ -23,7 +23,7 @@ class Vocab(object):
         self.topic_vocab = topic_vocab
 
     def get_vocab(self):
-        # topic 词表
+        
         action_type = ['谈论', '拒绝', '请求推荐', '允许推荐', '推荐电影', '反馈', '反馈，结束']
         RESERVED_WORDS = [ option.PAD_WORD,option.BOS_PRE, option.BOS_PRO,
                            option.UNK_WORD]
@@ -44,7 +44,7 @@ class Vocab(object):
         movie_vocab = RESERVED_WORDS + action_type + movie_vocab
         movie_len = len(movie_vocab)
 
-        # word 词表
+       
         word_vocab = []
         with open(option.vocab_movie_file, encoding='utf-8') as vocab_file:
             for line in vocab_file.readlines():
@@ -174,7 +174,7 @@ class Vocab(object):
             related_topics = self.topic2index(related_topics)
             relations[i, related_topics] = 1.0
         relations = relations.cuda()
-        relations[:, 0] = 0.0  # pad
+        relations[:, 0] = 0.0  
         relations = relations.unsqueeze(0).expand(option.batch_size, -1, -1)
         return relations
 
@@ -186,14 +186,12 @@ class Vocab(object):
             related_topics = []
             if movie in movie2topic:
                 related_topics = movie2topic[movie]
-            # related_topics, related_topics_len = clip_pad_sentence(related_topics, option.relation_num)
+           
             related_topics = self.topic2index(related_topics)
-            # relations.append(related_topics)
-            # relations_length.append(related_topics_len)
+            
             relations[i,related_topics] = 1.0
 
-        # relations_length = torch.tensor(relations_length).cuda()
-        # relations = torch.tensor(relations).cuda()
+        
         relations = relations.cuda()
         relations[:,0] = 0.0  # pad
         relations = relations.unsqueeze(0).expand(option.batch_size,-1,-1)

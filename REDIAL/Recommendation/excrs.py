@@ -76,11 +76,7 @@ class ExcrsTopic(nn.Module):
             word_emb=self.word_emb
         ).cuda()
 
-        # self.main_tfr_encoder = BertModel.from_pretrained('./').cuda()
-        # for param in self.main_tfr_encoder.parameters():
-        #     param.requires_grad = True
-
-        # encode user id
+       
         self.u_tfr_encoder4p = Encoder(
             n_src_vocab=user_cont, n_position=1,
             d_word_vec=d_word_vec, d_model=d_model, d_inner=d_inner,
@@ -135,7 +131,7 @@ class ExcrsTopic(nn.Module):
             word_emb=self.topic_emb
         ).cuda()
 
-        # decode action
+       
         self.a_tfr_decoder = Decoder(
             n_trg_vocab=self.topic_len, n_position=op.action_num,
             d_word_vec=d_word_vec, d_model=d_model, d_inner=d_inner,
@@ -144,7 +140,7 @@ class ExcrsTopic(nn.Module):
             word_emb=self.topic_emb
         ).cuda()
 
-        # 1.profile       prior input:[Uid]    posterior input:[Uid,session]    output:distribution over topics
+              
         if op.wo_l:
             self.p_l = None
             self.q_l = None
@@ -178,7 +174,7 @@ class ExcrsTopic(nn.Module):
                                          max_seq_len=op.preference_num,gs=self.gumbel_softmax,glo2loc=self.glo2loc,
                                          loc2glo=self.loc2glo,ts=self.pre_tau_scheduler).cuda()
 
-        # 4.action   input:[Rt-1Ut,pro,pre,kg]   output:action
+        
         self.action = Action(p_encoder=self.p_tfr_encoder4p,main_encoder=self.main_tfr_encoder,
                              a_decoder=self.a_tfr_decoder,graphencoder=self.dbpedia_RGCN,hidden_size=d_model,
                              n_topic_vocab=self.topic_len,bos_idx=self.a_bos_idx,vocab=self.vocab,
@@ -276,7 +272,7 @@ class ExcrsTopic(nn.Module):
             return  ar, ar_probs, p_m, p_l
 
     def mask_preference(self, pv_m, final):
-        #  [B,L,V]   [B,]   方法测过没问题
+        #  [B,L,V]   [B,]  
         b = range(op.batch_size)
         b = [i + 1 for i in b]
         # final = final.cpu()
@@ -533,18 +529,10 @@ class EngineTopic():
         ar_probs  [B,L,V]
         ar_gth    [B,L]
         '''
-        # for i in range(op.batch_size):
-        #     ar = ar_gth[i][0]
-        #     self.mask[i,:,ar] = 1
-        #     for k in range(499):
-        #         cand = random.sample(range(self.movie_len), 1)[0]
-        #         while self.movies[cand] == ar:
-        #             cand = random.sample(range(self.movie_len), 1)[0]
-        #         self.mask[i,:,cand] = 1
-        # ar_probs = ar_probs.mul(self.mask)
+        
         ar_probs = ar_probs.squeeze(1)
         _, pred_idx = torch.topk(ar_probs, k=100, dim=1)
-        for i in range(op.batch_size):  # 循环每个batch
+        for i in range(op.batch_size): 
             target = ar_gth[i,:]
             self.metrics["recall@1"] += int(target in pred_idx[i][:1].tolist())
             self.metrics["recall@10"] += int(target in pred_idx[i][:10].tolist())
@@ -558,7 +546,7 @@ def get_mask_via_len(length, max_len):
     mask = torch.ones([B, max_len]).cuda()
     mask = torch.cumsum(mask, 1)  # [ [1,2,3,4,5..], [1,2,3,4,5..] .. ] [B,max_len]
     mask = mask <= length.unsqueeze(
-        1)  # [ [True,True,..,Flase],[True,True,..,Flase],..  ] 第一个列表中True的个数为第一个session中的句子长度，后面填充的都是false
+        1) 
     mask = mask.unsqueeze(-2)  # [B,1,max_len]
     return mask
 
@@ -585,12 +573,7 @@ def one_hot_scatter(indice, num_classes, dtype=torch.float):
     return placeholder
 
 def kl_loss(prior_dist, posterior_dist):
-        """kl loss, 计算的是posterior和prior kl divergence
-        Parameters
-        ------
-        prior_dist:             B, S, K
-        posterior_dist:         B, S, K
-        """
+        
         bias = 1e-24
 
         if (len(prior_dist.shape) >= 3) and op.hungary:
@@ -613,18 +596,7 @@ def kl_loss(prior_dist, posterior_dist):
         return kl_div
 
 def nll_loss(hypothesis, target, pad_id ):
-        """nll  loss
-        Parameters
-        ------
-        hypothesis:         B, T, V
-        target:             B, T
-        pad_id:             bool
-
-        Returns
-        ------
-        nll_loss:           (,)   (Scalar)
-        nll_loss_vector:    B,
-        """
+       
 
         eps = 1e-9
         B, T = target.shape
@@ -654,10 +626,7 @@ def regularization_loss(dist):
         return regularization
 
 def action_nll(hypothesis,target,pad_idx):
-        '''
-        hypothesis : [B,L,V]
-        target  : [B,L]
-        '''
+       
         eps = 1e-9
         hypothesis = hypothesis.reshape(-1,hypothesis.size(-1))
         target = target.reshape(-1)

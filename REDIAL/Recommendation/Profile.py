@@ -33,7 +33,7 @@ class PriorProfile(nn.Module):
 
         for _ in range(op.profile_num):
             dec_output = Tools._single_decode(seq_gen_gumbel.detach(), id_hidden_p, id_mask, self.decoder)  # [B,1,H]
-            # 先验无copy
+            
             single_step_prob = self.gen_proj(dec_output)  # [B,1,V]
             single_step_prob = torch.softmax(single_step_prob,-1)
             single_step_gumbel_word = self.gs.forward(single_step_prob, self.ts.step_on(), normed=True)
@@ -90,11 +90,11 @@ class PosteriorProfile(nn.Module):
         seq_gen_prob = None
         for _ in range(op.profile_num):
             dec_output = Tools._single_decode(seq_gen_gumbel.detach(), src_hidden, src_mask, self.decoder)  # [B,1,H]
-            # 这里使用copy机制
+            # 
             # single_step_prob = self.proj(dec_out=dec_output,topics_hidden=topic_hidden,
             #                              topics=topics,topics_mask=topic_mask)  # [B,1,V]
 
-            # 不使用copy机制  action效果不好
+            # 
             single_step_prob = self.gen_proj(dec_output)  # [B,1,V]
             single_step_prob = torch.softmax(single_step_prob, -1)
 
@@ -119,10 +119,7 @@ class PosteriorProfile(nn.Module):
             return seq_gen_gumbel[:,1:]
 
     def proj(self,dec_out,topics_hidden,topics,topics_mask):
-        '''
-        生成概率 + 从conv中复制的概率
-        return : [B,L_l,V]
-        '''
+        
         # generation  [B,1,V]
         gen_logit = self.gen_proj(dec_out)
         L_s = dec_out.size(1)
@@ -148,11 +145,7 @@ class PosteriorProfile(nn.Module):
         return probs
 
     def get_movie_rep(self,related_movies,related_movies_mask,p_encoder,relations,relations_len):
-        '''
-        related_movies : [B,L]  相关的电影数量
-        related_movies_mask : [B,1,100]
-        return: [B,L,H]  电影的表示
-        '''
+       
         movie_rep = None
         mask = None
         for i in range(op.movie_path_len):

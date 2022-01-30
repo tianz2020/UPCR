@@ -2,11 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-__author__ = "Yu-Hsiang Huang"
 
 
 class ScaledDotProductAttention(nn.Module):
-    ''' Scaled Dot-Product Attention '''
+    
 
     def __init__(self, temperature, attn_dropout=0.1):
         super().__init__()
@@ -17,7 +16,7 @@ class ScaledDotProductAttention(nn.Module):
         attn = torch.matmul(q / self.temperature, k.transpose(2, 3))
 
         if mask is not None:
-            attn = attn.masked_fill(mask == 0, -1e9)  # 0代表mask，1不mask，这里与一些1代表mask不太一样
+            attn = attn.masked_fill(mask == 0, -1e9)  
 
         attn = self.dropout(F.softmax(attn, dim=-1))
         output = torch.matmul(attn, v)

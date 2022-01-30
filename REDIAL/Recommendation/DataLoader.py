@@ -42,11 +42,11 @@ class DataLoaderRec():
             self.graph[topic] = set()
 
     def __iter__(self):
-        # __iter__方法返回一个迭代对象，然后python不断调用该迭代对象的__next__方法拿到循环的下一个值，直到遇到StopIteration退出循环
+      
         return self
 
     def __next__(self):
-        # __iter__方法返回一个迭代对象，然后python不断调用该迭代对象的__next__方法拿到循环的下一个值，直到遇到StopIteration退出循环
+        
         for i in range(len(self.history_convs)):
             if len(self.history_convs[i]) == 0:
                 if not self.sunset:
@@ -54,7 +54,7 @@ class DataLoaderRec():
                     if processed_session is not None and processed_session is not []:
                         self.history_convs[i] = processed_session
 
-        self.history_convs = [ conv for conv in self.history_convs if len(conv)>0 ]  # 去除已经完成的
+        self.history_convs = [ conv for conv in self.history_convs if len(conv)>0 ]  
         if len(self.history_convs) == 0:
             print("stop")
             raise StopIteration
@@ -72,7 +72,7 @@ class DataLoaderRec():
             self.sunset = True
             return None
 
-        conv = self.dataset[self.conv_index] #拿出一个session
+        conv = self.dataset[self.conv_index]
 
         processed_session = self.process(conv)
         self.conv_index += 1

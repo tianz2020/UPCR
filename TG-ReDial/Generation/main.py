@@ -3,7 +3,6 @@ import random
 from DataProcessor import DataSet
 from get_logger  import get_logger
 from get_logger  import task_uuid
-# from DataLoader1 import DataLoader
 import pickle
 from DataLoaderResp import DataLoaderResp
 from Vocab import  Vocab
@@ -58,36 +57,25 @@ def config():
     parser.add_argument("-vocab_path","--vocab_path",type=str,default=r"C:\Users\Administrator\Desktop\TG_data\vocab.txt",help='用于初始化分词器的字典')
     parser.add_argument("--processed", type=bool, default=True, help='数据是否已经预处理')
     args = parser.parse_args()
-    #option_update(args)
-    #log_config()
+    
     return args
 
 
 def main():
     random.seed(1234)
     args = config()
-    # 数据预处理
+    
     main_logger.info("preparing data")
     dataset = DataSet(args=args)
     train, valid, test, users, user_cont = dataset.get_dialog()
     vocab = Vocab()
 
-    # with open('./dataset/train_resp.pkl', 'wb+') as f:
-    #    pickle.dump(train,f)
-    #
-    # with open('./dataset/valid_resp.pkl', 'wb+') as f1:
-    #    pickle.dump(valid,f1)
-    #
-    # with open('./dataset/test_resp.pkl', 'wb+') as f2:
-    #    pickle.dump(test,f2)
-
     random.shuffle(train)
 
-    # response
+   
     excrs = ExcrsResp(vocab=vocab,user_cont=user_cont)
     engine = EngineResp(model=excrs,vocab=vocab)
-    engine.test(test,'test')
-    # engine.train(train,test)
-
+    engine.train(train,test)
+   
 if __name__ == '__main__':
     main()

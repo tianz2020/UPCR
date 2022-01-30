@@ -17,7 +17,7 @@ class PriorProfile(nn.Module):
         self.n_topic_vocab = n_topic_vocab
         self.bos_idx = trg_bos_idx
         self.hidden_size = hidden_size
-        # self.gen_proj = nn.Sequential(nn.Linear(self.hidden_size, self.n_topic_vocab))
+        
         self.gen_proj = nn.Linear(self.hidden_size, self.n_topic_vocab)
 
         self.max_seq_len = max_seq_len
@@ -25,22 +25,22 @@ class PriorProfile(nn.Module):
         self.ts = ts
 
     def forward(self,id):
-        #  id: [B,1,H]
+      
         bs = id.size(0)
 
-        id_mask = id.new_ones(bs, 1, 1).cuda()  # [B,1,1]
+        id_mask = id.new_ones(bs, 1, 1).cuda() 
         user_id = id.unsqueeze(-1)
-        id_hidden_p = self.id_encoder(user_id, id_mask)  # [B,1,H]
+        id_hidden_p = self.id_encoder(user_id, id_mask)  
 
-        seq_gen_gumbel = Tools._generate_init(bs, self.n_topic_vocab, trg_bos_idx=self.bos_idx,training=self.training)  # B, 1 / B, 1, V
+        seq_gen_gumbel = Tools._generate_init(bs, self.n_topic_vocab, trg_bos_idx=self.bos_idx,training=self.training)  
         seq_gen_prob = None
 
         for _ in range(op.profile_num):
 
-            dec_output = Tools._single_decode(seq_gen_gumbel.detach(), id_hidden_p, id_mask, self.decoder)  # [B,1,H]
-            # 先验无copy
+            dec_output = Tools._single_decode(seq_gen_gumbel.detach(), id_hidden_p, id_mask, self.decoder)  
+       
 
-            single_step_prob = self.gen_proj(dec_output)  # [B,1,V]
+            single_step_prob = self.gen_proj(dec_output)  
 
             single_step_prob = torch.softmax(single_step_prob,-1)
             single_step_gumbel_word = self.gs.forward(single_step_prob, self.ts.step_on(), normed=True)
@@ -54,11 +54,10 @@ class PriorProfile(nn.Module):
                 single_step_word = torch.argmax(single_step_prob, -1)
                 seq_gen_gumbel = torch.cat([seq_gen_gumbel, single_step_word], 1)  # B, L' + 1
         if self.training:
-            # seq_gen_out:      B, max_gen_len, V
-            # seq_gen_gumbel:   B, max_gen_len , V
+           
             return seq_gen_prob, seq_gen_gumbel[:,1:,:]
         else:
-            # seq_gen:          B, max_gen_len
+            
             return seq_gen_gumbel[:,1:]
 
 class PosteriorProfile(nn.Module):
@@ -79,7 +78,7 @@ class PosteriorProfile(nn.Module):
         self.gs = gs
         self.ts = ts
 
-        # self.gen_proj = nn.Sequential(nn.Linear(self.hidden_size, self.n_topic_vocab))
+       
         self.gen_proj = nn.Linear(self.hidden_size, self.n_topic_vocab)
 
     def forward(self,id,topics,topics_len):
@@ -98,12 +97,12 @@ class PosteriorProfile(nn.Module):
         src_mask = torch.cat([id_mask,topic_mask],2)
 
 
-        seq_gen_gumbel = Tools._generate_init(bs, self.n_topic_vocab, trg_bos_idx=self.bos_idx,training=self.training)  # B, 1 / B, 1, V
+        seq_gen_gumbel = Tools._generate_init(bs, self.n_topic_vocab, trg_bos_idx=self.bos_idx,training=self.training)  
         seq_gen_prob = None
         for _ in range(op.profile_num):
-            dec_output = Tools._single_decode(seq_gen_gumbel.detach(), src_hidden, src_mask, self.decoder)  # [B,1,H]
+            dec_output = Tools._single_decode(seq_gen_gumbel.detach(), src_hidden, src_mask, self.decoder)  
 
-            # single_step_prob = self.proj(dec_output,topic_hidden,topic_mask,topics)  # [B,1,V]
+            
             single_step_prob = self.gen_proj(dec_output)
             single_step_prob = torch.softmax(single_step_prob, -1)
 
@@ -118,36 +117,32 @@ class PosteriorProfile(nn.Module):
 
             else:
                 single_step_word = torch.argmax(single_step_prob, -1)
-                seq_gen_gumbel = torch.cat([seq_gen_gumbel, single_step_word], 1)  # B, L' + 1
+                seq_gen_gumbel = torch.cat([seq_gen_gumbel, single_step_word], 1)  
         if self.training:
-            # seq_gen_out:      B, max_gen_len , V
-            # seq_gen_gumbel:   B, max_gen_len , V
+            
             return seq_gen_prob, seq_gen_gumbel[:,1:,:]
         else:
-            # seq_gen:          B, max_gen_len
+           
             return seq_gen_gumbel[:,1:]
 
     def proj(self,dec_out,topics_hidden,topics_mask,topics):
-        '''
-        生成概率 + 从conv中复制的概率
-        return : [B,L_l,V]
-        '''
-        # generation  [B,1,V]
+       
+      
         gen_logit = self.gen_proj(dec_out)
         L_s = dec_out.size(1)
 
-        # copy from conv  [B,1,H] * [B,H,Lc]  ->  [B,1,Lc]
+        
         copy_logit = torch.bmm(dec_out, topics_hidden.permute(0, 2, 1))
         copy_logit = copy_logit.masked_fill((topics_mask == 0).expand(-1, L_s, -1), -1e9)
-        # copy_logit = self.cp.step_on() * copy_logit
-        logits = torch.cat([gen_logit, copy_logit], -1)  # [B,1,V+Lc]
+        
+        logits = torch.cat([gen_logit, copy_logit], -1)  
 
         if op.scale_prj:
             logits *= self.hidden_size ** -0.5
 
-        # logits -> probs
+     
         probs = torch.softmax(logits, -1)
-        # generation [B,Li,V]
+        
         gen_prob = probs[:, :, :self.n_topic_vocab]
 
         copy_topic_prob = probs[:,:,self.n_topic_vocab:]
@@ -158,31 +153,19 @@ class PosteriorProfile(nn.Module):
         return probs
 
     def get_movie_rep(self,related_movies,related_movies_mask,p_encoder,relations,relations_len):
-        '''
-        related_movies : [B,L]  相关的电影数量
-        related_movies_mask : [B,1,100]
-        return: [B,L,H]  电影的表示
-        '''
+       
         mask = None
         topics = None
         masks =None
         for i in range(op.movie_path_len):
-            related_movie = related_movies[:,i]  # [B,]
+            related_movie = related_movies[:,i] 
             movie_mask = related_movies_mask[:,:,i]
-            movie_topic_mask = movie_mask.unsqueeze(-1).expand(-1,-1,op.tag_num) # B,1,3
-            related_topics = relations[related_movie,:op.tag_num]   # B , 3
+            movie_topic_mask = movie_mask.unsqueeze(-1).expand(-1,-1,op.tag_num) 
+            related_topics = relations[related_movie,:op.tag_num]  
             topics_len = relations_len[related_movie]
-            topics_mask = Tools.get_mask_via_len(topics_len,op.tag_num)  # B,1,3
-            topic_mask = movie_topic_mask & topics_mask  # B,1,3
+            topics_mask = Tools.get_mask_via_len(topics_len,op.tag_num)  
+            topic_mask = movie_topic_mask & topics_mask  
 
-            # topic_hidden = p_encoder(related_topics,topic_mask)    # B,3,512
-
-            # if movie_rep is None:
-            #     movie_rep = topic_hidden
-            #     mask = topic_mask
-            # else:
-            #     movie_rep = torch.cat([movie_rep,topic_hidden],1)
-            #     mask = torch.cat([mask,topic_mask],2)
 
             related_movie = related_movie.unsqueeze(-1)
             movie_mask = movie_mask.unsqueeze(-1)

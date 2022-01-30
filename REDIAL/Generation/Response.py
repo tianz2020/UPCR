@@ -29,15 +29,7 @@ class Response(nn.Module):
 
     def forward(self,ar,ar_len,context,context_len,tp_path,tp_path_len,tp_hidden,action_hidden,
                 resp_gth=None,resp_gth_len=None):
-        '''
-
-         ar :              [B,L_a]
-         ar_len :          [B,]
-         pv_ru_hidden:     [B,L_c,H]
-         pv_ru_mask:       [B,1,L_c]
-         resp_gth:         [B,L_r]
-         resp_gth_len:     [B,]
-        '''
+        
         bs = ar.size(0)
 
         context_mask = Tools.get_mask_via_len(context_len,op.context_max_len)
@@ -75,9 +67,7 @@ class Response(nn.Module):
             return seq_gen,probs
 
     def proj(self,dec_out,src_hidden,src_mask,context,action,tp):
-        '''
-        src_hidden = torch.cat([context_hidden,tp_hidden,action_hidden],1)
-        '''
+        
         B = action.size(0)
 
         # generation  [B,L_r,V]
@@ -124,8 +114,7 @@ class Response(nn.Module):
                        action,context,tp):
         probs = None
         for step in range(op.r_max_len):
-            # penalty_words = None
-            # B, 1, V
+            
             single_step_probs = self.single_decode(input_seq=seq_gen,src_hidden=src_hidden,src_mask=src_mask,
                                                    decoder=self.decoder,action=action,context=context,tp=tp)  # B, 1, V
             if probs is None:
@@ -135,13 +124,10 @@ class Response(nn.Module):
 
             single_step_probs = single_step_probs.squeeze(1)
 
-            # for i in op.batch_size:
-            #     single_step_probs[i][seq_gen[i]] /= 5
-
+            
             filtered_logits = top_k_top_p_filtering(single_step_probs)
             single_step_word = torch.multinomial(F.softmax(filtered_logits, dim=-1), num_samples=1)
-            # single_step_word = torch.argmax(filtered_logits, -1)
-            # penalty_words = single_step_word.unsqueeze(1)
+            
             seq_gen = torch.cat([seq_gen, single_step_word], 1)  # B, L' + 1
 
         return seq_gen[:,1:],probs
@@ -228,18 +214,7 @@ class Response(nn.Module):
         return bst_trajectory[:,1:]
 
     def harvest(self, scores, history, word_index, obs):
-        """harvest the mature trajectory
-
-        Args:
-            scores(torch.FloatTensor):          B, k * k
-            history(torch.LongTensor):          B * k, T
-            word_index(torch.LongTensor):       B * k, 1, k
-            obs(int):                           batch size, 8 in inference stage
-
-        Returns:
-            scores:
-
-        """
+        
         # B, k * k
         word_index = word_index.reshape(obs, -1)
         eos_sign = (word_index == self.eos_idx)
@@ -368,12 +343,7 @@ def nested_index_select(origin_data, select_index):
     return selected_data
 
 def expand_if_not_none(tensor, dim, beam_width):
-    """expand tensor dimension
-    Args:
-        tensor: torch.Tensor
-        dim: int
-        beam_width: int
-    """
+    
     if tensor is None:
         return None
     tensor_shape = list(tensor.shape)

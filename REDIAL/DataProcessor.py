@@ -74,7 +74,7 @@ class DataSet():
                     entity = []
                     entities = []
                     for context in contexts:
-                        # 分词，并且拿到target
+                        
                         token_text,movie_rec,topics=_tokenize_sentece(context['text'],movies)
                         entity = list(set(topics).difference(set(movie_rec)))
                         if len(context_list) == 0:
@@ -83,12 +83,12 @@ class DataSet():
                             context_list.append(context_dict)
                             last_id = context['senderWorkerId']
                         else:
-                            if context['senderWorkerId'] == last_id:  # 一个人继续说
+                            if context['senderWorkerId'] == last_id:  
                                 context_list[-1]['text'] += token_text
                                 context_list[-1]['movie'] += movie_rec
                                 context_list[-1]['topic_path'] = last_path
                                 context_list[-1]['topics'] += entity
-                            else:  # 换人了
+                            else:  
                                 last_path = topic_path.copy()
                                 context_dict = {'text': token_text,'topic_path':last_path,
                                                 'user': context['senderWorkerId'], 'movie': movie_rec,'topics':entity}
@@ -122,9 +122,7 @@ class DataSet():
                 return convs
 
             def _tokenize_sentece(sentence,movies):
-                '''
-                return: tokenized_sentence,其中movie连同前面的@是一个字段
-                '''
+               
 
                 topics = []
                 if sentence in self.text_dict:
@@ -152,10 +150,7 @@ class DataSet():
                     if word[1:] in movies and word in self.topic_vocab:
                         movie_rec.append(word)
 
-                # movie_rec_trans = []
-                # for movie in movie_rec:
-                #     if movie in entity2entityId:
-                #         movie_rec_trans.append(movie)
+               
 
                 return token_text_com, movie_rec, topics
 
@@ -175,7 +170,7 @@ class DataSet():
                 if entity not in kg:
                     continue
                 for tail_and_relation in kg[entity]:
-                    if entity != tail_and_relation[1] and tail_and_relation[0] != 185:  # and tail_and_relation[0] in EDGE_TYPES:
+                    if entity != tail_and_relation[1] and tail_and_relation[0] != 185:  
                         edge_list.append((entity, tail_and_relation[1], tail_and_relation[0]))
                         edge_list.append((tail_and_relation[1], entity, tail_and_relation[0]))
         relation_cnt = defaultdict(int)
@@ -203,7 +198,7 @@ def clip_pad_sentence(sentence,
         ml = ml - 2
     if save_prefix:
         sentence = sentence[:ml]
-    else: #截取后面部分
+    else:
         sentence = sentence[-ml:]
     if eos is not None:
         sentence = [sos] + sentence
@@ -213,7 +208,7 @@ def clip_pad_sentence(sentence,
     if return_length:
         length = len(sentence)
 
-    if pad_suffix:  # 填充
+    if pad_suffix:
         sentence += [pad] * (max_len - len(sentence))
     else:
         sentence = [pad] * (max_len - len(sentence)) + sentence
@@ -237,7 +232,7 @@ def clip_pad_context(context,
         turn = turn + [sent]
         sentence = sentence + turn
     if context:
-        sentence = sentence + context[-1]  # [ r1,sent,u2,sent,r2,sent,.... ]
+        sentence = sentence + context[-1]  
 
     real_len = len(sentence)
 

@@ -1,11 +1,4 @@
-# -*- coding: utf-8 -*-
-# @Time    : 2020-02-03 22:40
-# @Author  : lddsdu
-# @File    : get_logger.py
 
-"""
-usage:
-"""
 
 import uuid
 import logging

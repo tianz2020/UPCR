@@ -3,7 +3,7 @@
 
 class CopyScheduler:
     def __init__(self, origin_lambda, mini_lambda, n_step, s_step=0):
-        #  5 1 20000 0
+   
         self.origin_lambda = origin_lambda
         self.mini_lambda = mini_lambda
         self.n_step = n_step

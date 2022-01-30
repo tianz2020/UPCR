@@ -1,31 +1,36 @@
 import gc
 import json
+
 import torch.nn as nn
 import torch
 from option import  option as op
+from tau_scheduler import  TauScheduler
+from copy_scheduler import CopyScheduler
 from transformer.Models import Encoder
 from transformer.Models import Decoder
+from ProfileTopic import PriorProfile,PosteriorProfile
+from PreferenceTopic import PriorPreference,PosteriorPreference
 from gumbel_softmax import GumbelSoftmax
 from UserIntention import UserIntention
 from ActionTopic import Action
 from tools import Tools
 from kg.knowledgeGraph import knowledgeGraph
 import ipdb
-from ResponseRedial import  Response
-from VocabRedial import Vocab
+from Response import  Response
+from Vocab import Vocab
+from gcn import GraphEncoder
 from scipy import optimize
 import torch.nn.functional as F
 from tqdm import tqdm
 from transformer.Optim import ScheduledOptim
-import Bleu_redial
-import distinct_redial
-from DataLoaderRespRedial import DataLoaderResp
+import Bleu
+import distinct
+from DataLoaderResp import DataLoaderResp
+
 import math
 import sys
 from math import exp
-from torch_geometric.nn.conv.rgcn_conv import RGCNConv
-import pickle
-from collections import defaultdict
+
 
 
 
@@ -41,20 +46,14 @@ class ExcrsResp(nn.Module):
         self.glo2loc = torch.tensor(self.glo2loc).cuda()
         self.loc2glo = torch.tensor(self.loc2glo).cuda()
         self.topic_num = vocab.topic_num()
-        self.word_vocab, self.word_len, self.topic_vocab, self.topic_len= vocab.get_vocab()
+        self.word_vocab, self.word_len, self.topic_vocab, self.topic_len,self.movie_vocab, self.movie_len = vocab.get_vocab()
         self.word_pad_idx = vocab.get_word_pad()
         self.topic_pad_idx = vocab.get_topic_pad()
         self.r_bos_idx = vocab.word2index(op.BOS_RESPONSE)
         self.r_eos_idx = vocab.word2index(op.EOS_RESPONSE)
-        self.kg = pickle.load(open("./dataset/subkg.pkl", "rb"))
-        edge_list, n_relation = _edge_list(self.kg, self.topic_len, hop=2)
-        edge_list = list(set(edge_list))
-        self.dbpedia_edge_sets = torch.LongTensor(edge_list).cuda()
-        self.db_edge_idx = self.dbpedia_edge_sets[:, :2].t()
-        self.db_edge_type = self.dbpedia_edge_sets[:, 2]
         self.beam_width = beam_width
         self.word_emb = nn.Embedding(self.word_len,d_word_vec,padding_idx=self.word_pad_idx)
-        self.topic_emb = nn.Embedding(self.topic_len,d_word_vec,padding_idx=self.topic_pad_idx).cuda()
+        self.topic_emb = nn.Embedding(self.topic_len,d_word_vec,padding_idx=self.topic_pad_idx)
         self.gumbel_softmax = GumbelSoftmax()
         self.global_step = 0
 
@@ -66,8 +65,24 @@ class ExcrsResp(nn.Module):
             pad_idx=self.word_pad_idx, dropout=dropout, scale_emb=False,
             word_emb=self.word_emb
         )
-        # encode kg
-        self.dbpedia_RGCN = RGCNConv(d_word_vec, d_word_vec, n_relation, num_bases=8).cuda()
+
+        # for encode topic path
+        self.p_tfr_encoder4p = Encoder(
+            n_src_vocab=self.topic_len, n_position=20,
+            d_word_vec=d_word_vec, d_model=d_model, d_inner=d_inner,
+            n_layers=p_layers, n_head=n_head, d_k=d_k, d_v=d_v,
+            pad_idx=self.topic_pad_idx, dropout=dropout, scale_emb=False,
+            word_emb=self.topic_emb
+        )
+
+        # encode action
+        self.a_tfr_encoder = Encoder(
+            n_src_vocab=self.topic_len, n_position=op.action_num,
+            d_word_vec=d_word_vec, d_model=d_model, d_inner=d_inner,
+            n_layers=p_layers, n_head=n_head, d_k=d_k, d_v=d_v,
+            pad_idx=self.topic_pad_idx, dropout=dropout, scale_emb=False,
+            word_emb=self.topic_emb
+        )
 
         # decode response
         self.main_tfr_decoder = Decoder(
@@ -79,8 +94,8 @@ class ExcrsResp(nn.Module):
         )
 
         # Response
-        self.response = Response(decoder=self.main_tfr_decoder,main_encoder=self.main_tfr_encoder,
-                                 hidden_size=d_model,n_vocab=self.word_len,trg_bos_idx=self.r_bos_idx,
+        self.response = Response(a_encoder=self.a_tfr_encoder,decoder=self.main_tfr_decoder,p_encoder=self.p_tfr_encoder4p,
+                                 main_encoder=self.main_tfr_encoder,hidden_size=d_model,n_vocab=self.word_len,trg_bos_idx=self.r_bos_idx,
                                  trg_eos_idx=self.r_eos_idx,max_seq_len=op.r_max_len,beam_width=beam_width,
                                  loc2glo=self.loc2glo,n_topic=self.topic_len).cuda()
 
@@ -95,37 +110,22 @@ class ExcrsResp(nn.Module):
                 mode='train'):
         assert mode in ['train','valid','test']
 
-        db_nodes_features = self.dbpedia_RGCN(self.topic_emb.weight, self.db_edge_idx, self.db_edge_type)
-        tp_path_hidden = self.get_hidden(db_nodes_features, tp_path)
-        ar_hidden = self.get_hidden(db_nodes_features, ar_gth)
-
         if mode == 'train':
             self.global_step += 1
             resp = self.response.forward(ar=ar_gth, ar_len=ar_gth_len, context=context,context_len=context_len,
-                                         tp_path=tp_path,tp_path_len=tp_path_len,resp_gth=resp, resp_gth_len=resp_len,
-                                         tp_hidden=tp_path_hidden,action_hidden=ar_hidden)
+                                         tp_path=tp_path,tp_path_len=tp_path_len,resp_gth=resp, resp_gth_len=resp_len)
             return resp
 
         else:
             resp,probs = self.response.forward(ar=ar_gth, ar_len=ar_gth_len, context=context, context_len=context_len,
-                                               tp_path=tp_path, tp_path_len=tp_path_len, resp_gth=resp, resp_gth_len=resp_len,
-                                               tp_hidden=tp_path_hidden,action_hidden=ar_hidden)
+                                         tp_path=tp_path, tp_path_len=tp_path_len, resp_gth=resp, resp_gth_len=resp_len)
             return resp,probs
+
 
     def topictensor2nl(self,tensor):
         words = tensor.detach().cpu().numpy()
         words = self.vocab.index2topic(words)
         return words
-
-    def get_hidden(self,nodes,topics):
-        related_topic_hidden = None
-        for i in range(op.batch_size):
-            t = topics[i]
-            if related_topic_hidden is None:
-                related_topic_hidden = nodes[t].unsqueeze(0)
-            else:
-                related_topic_hidden = torch.cat([related_topic_hidden, nodes[t].unsqueeze(0)], 0)
-        return related_topic_hidden
 
 
 class EngineResp():
@@ -140,9 +140,9 @@ class EngineResp():
         self.word_pad_idx = self.vocab.word2index(op.PAD_WORD)
         self.global_step = 0
         self.loss = 0
-        # self.rec_model = torch.load('./rec_redial.pkl')
-
+        self.topic_model = torch.load('./topic_graph.pkl')
     def train(self,train_set,test_set):
+
         for e in range(op.epoch):
             print("epoch : {}".format(e))
             train_loader = DataLoaderResp(train_set,self.vocab)
@@ -167,7 +167,6 @@ class EngineResp():
                                         resp=resp,resp_len=resp_len,
                                         final=final)
 
-
                 '''loss'''
                 loss,_ = nll_loss(resp_gen,resp.detach(),self.word_pad_idx)
 
@@ -189,7 +188,7 @@ class EngineResp():
           
             del train_loader
             gc.collect()
-        
+       
         print("train finished ! ")
 
     def test(self,test_set,mode):
@@ -205,9 +204,10 @@ class EngineResp():
         else:
             print(" test ")
             dataloader = DataLoaderResp(test_set,self.vocab)
+            
 
         with torch.no_grad():
-
+            # for index,data in dataloader.items():
             for index,data in enumerate(dataloader):
                 if data[0].size(0) != op.batch_size:
                     break
@@ -221,27 +221,25 @@ class EngineResp():
                 resp, resp_len, \
                 final = data
 
-                resp_gen,probs = self.model.forward(user_id=None,
-                                            context=context_idx, context_len=context_len,
-                                            tp_path=state_U,tp_path_len=state_U_len,
-                                            ar_gth=a_R, ar_gth_len=a_R_len,
-                                            resp=None,resp_len=None,
-                                            final=None,
-                                            mode='test')
+              
 
-                resp_gen_word = self.wordtensor2nl(resp_gen)
-                resp_gth_word = self.wordtensor2nl(resp)
+                probs = self.model.forward(user_id=id,
+                                        context=context_idx, context_len=context_len,
+                                        tp_path=state_U,tp_path_len=state_U_len,
+                                        ar_gth=a_R, ar_gth_len=a_R_len,
+                                        resp=resp,resp_len=resp_len,
+                                        final=final)
 
-                res_gen.extend(resp_gen_word)
-                res_gth.extend(resp_gth_word)
+                loss, _ = nll_loss(probs, resp.detach(), self.word_pad_idx)
+                losses += loss.item()
 
-            bleu = Bleu_redial.bleu(res_gen,res_gth)
-            dist_1, dist_2,dist_3,dist_4 = distinct_redial.cal_calculate(res_gen)
-            print("bleu:{},dist_1:{},dist_2:{},dist_3:{},dist_4:{}".format(bleu,dist_1,dist_2,dist_3,dist_4))
+            ppl = exp(losses/step)
+            print("ppl:{}".format(ppl))
+         
             sys.stdout.flush()
         self.model.train()
         print('test finished!')
-      
+        
         del dataloader
         gc.collect()
 
@@ -272,8 +270,8 @@ class EngineResp():
                     metrics['NDCG{}'.format(k)] += 1.0 / math.log(rank + 2.0, 2)
                     metrics['MRR{}'.format(k)] += 1.0 / (rank + 1.0)
 
-        for i, gt in enumerate(ar_gth): 
-            
+        for i, gt in enumerate(ar_gth):  
+            # gt是一个batch的action  [type,topic,type,topic...]
             ar_gen = ar_probs[i,:]
             gt_len = int(a_R_len[i])
             for j in range(0,gt_len,2):
@@ -289,10 +287,10 @@ def get_mask_via_len(length, max_len):
     """"""
     B = length.size(0)  # batch size
     mask = torch.ones([B, max_len]).cuda()
-    mask = torch.cumsum(mask, 1) 
+    mask = torch.cumsum(mask, 1)  # [ [1,2,3,4,5..], [1,2,3,4,5..] .. ] [B,max_len]
     mask = mask <= length.unsqueeze(
-        1)  
-    mask = mask.unsqueeze(-2)  
+        1) 
+    mask = mask.unsqueeze(-2)  # [B,1,max_len]
     return mask
 
 def get_default_tensor(shape, dtype, pad_idx=None):
@@ -341,7 +339,7 @@ def kl_loss(prior_dist, posterior_dist):
         return kl_div
 
 def nll_loss(hypothesis, target, pad_id ):
-      
+       
 
         eps = 1e-9
         B, T = target.shape
@@ -371,7 +369,10 @@ def regularization_loss(dist):
         return regularization
 
 def action_nll(hypothesis,target,pad_idx):
-        
+        '''
+        hypothesis : [B,L,V]
+        target  : [B,L]
+        '''
         eps = 1e-9
         hypothesis = hypothesis.reshape(-1,hypothesis.size(-1))
         target = target[:,[1,3,5,7,9]]
@@ -379,24 +380,3 @@ def action_nll(hypothesis,target,pad_idx):
         nll_loss = F.nll_loss(torch.log(hypothesis+eps),target,ignore_index=pad_idx)
 
         return nll_loss
-def _edge_list(kg, n_entity, hop):
-    edge_list = []
-    for h in range(hop):
-        for entity in range(n_entity):
-            edge_list.append((entity, entity, 185))
-            if entity not in kg:
-                continue
-            for tail_and_relation in kg[entity]:
-                if entity != tail_and_relation[1] and tail_and_relation[0] != 185 :# and tail_and_relation[0] in EDGE_TYPES:
-                    edge_list.append((entity, tail_and_relation[1], tail_and_relation[0]))
-                    edge_list.append((tail_and_relation[1], entity, tail_and_relation[0]))
-
-    relation_cnt = defaultdict(int)
-    relation_idx = {}
-    for h, t, r in edge_list:
-        relation_cnt[r] += 1
-    for h, t, r in edge_list:
-        if relation_cnt[r] > 1000 and r not in relation_idx:
-            relation_idx[r] = len(relation_idx)
-
-    return [(h, t, relation_idx[r]) for h, t, r in edge_list if relation_cnt[r] > 1000], len(relation_idx)

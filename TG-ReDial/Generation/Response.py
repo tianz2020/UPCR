@@ -28,17 +28,9 @@ class Response(nn.Module):
 
     def forward(self,ar,ar_len,context,context_len,tp_path,tp_path_len,tp_hidden,action_hidden,
                 resp_gth=None,resp_gth_len=None):
-        '''
-
-         ar :              [B,L_a]
-         ar_len :          [B,]
-         pv_ru_hidden:     [B,L_c,H]
-         pv_ru_mask:       [B,1,L_c]
-         resp_gth:         [B,L_r]
-         resp_gth_len:     [B,]
-        '''
+       
         bs = ar.size(0)
-        # ipdb.set_trace()
+      
         context_mask = Tools.get_mask_via_len(context_len,op.context_max_len)
         context_hidden = self.main_encoder(context,context_mask)
 
@@ -52,14 +44,14 @@ class Response(nn.Module):
         src_mask = torch.cat([context_mask,tp_mask,action_mask],2)
 
         if resp_gth is not None:
-            # train
+           
             resp_mask = Tools.get_mask_via_len(resp_gth_len,op.r_max_len) & Tools.get_subsequent_mask(resp_gth)
             dec_out = self.decoder(resp_gth,resp_mask,src_hidden,src_mask)
             probs = self.proj(dec_out=dec_out,src_hidden=src_hidden,src_mask=src_mask,context=context,
                                       action=ar,tp=tp_path)
             return probs
         else:
-            # test
+            
             seq_gen = torch.ones(bs, 1, dtype=torch.long) * self.bos_idx
             seq_gen = seq_gen.cuda()
 
@@ -67,31 +59,27 @@ class Response(nn.Module):
                 seq_gen,probs = self._greedy_search(seq_gen=seq_gen, src_hidden=src_hidden, src_mask=src_mask,
                                              action=ar,context=context,tp=tp_path)
             else:
-                # seq_gen = self._beam_search(seq_gen, src_hidden, src_mask,
-                #                             context_hidden, context_mask, context,
-                #                             ar,ar_hidden,ar_mask)
+                                       ar,ar_hidden,ar_mask)
                 probs = None
             return seq_gen,probs
 
     def proj(self,dec_out,src_hidden,src_mask,context,action,tp):
-        '''
-        src_hidden = torch.cat([context_hidden,tp_hidden,action_hidden],1)
-        '''
+        
         B = action.size(0)
 
-        # generation  [B,L_r,V]
+        
         gen_logit = self.gen_proj(dec_out)
         L_r = dec_out.size(1)
         copy_logit = torch.bmm(dec_out, src_hidden.permute(0, 2, 1))
         copy_logit = copy_logit.masked_fill((src_mask == 0).expand(-1, L_r, -1), -1e9)
-        logits = torch.cat([gen_logit, copy_logit], -1)  # [B,L_r,V+L_a+L_c]
+        logits = torch.cat([gen_logit, copy_logit], -1)  
 
         if op.scale_prj:
             logits *= self.hidden_size ** -0.5
 
-        # logits -> probs
+      
         probs = torch.softmax(logits, -1)
-        # generation [B,Li,V]
+        
         gen_prob = probs[:, :, :self.n_vocab]
 
         copy_context_prob = probs[:,:,self.n_vocab:
@@ -123,26 +111,24 @@ class Response(nn.Module):
                        action,context,tp):
         probs = None
         for step in range(op.r_max_len):
-            # penalty_words = None
-            # B, 1, V
+            
             single_step_probs = self.single_decode(input_seq=seq_gen,src_hidden=src_hidden,src_mask=src_mask,
-                                                   decoder=self.decoder,action=action,context=context,tp=tp)  # B, 1, V
+                                                   decoder=self.decoder,action=action,context=context,tp=tp) 
             if probs is None:
                 probs = single_step_probs
             else:
                 probs = torch.cat([probs,single_step_probs],1)
             single_step_word = torch.argmax(single_step_probs, -1)
-            # penalty_words = single_step_word.unsqueeze(1)
-            seq_gen = torch.cat([seq_gen, single_step_word], 1)  # B, L' + 1
+            
+            seq_gen = torch.cat([seq_gen, single_step_word], 1) 
 
         return seq_gen[:,1:],probs
 
     def single_decode(self, input_seq, src_hidden, src_mask, decoder,
                        action,context,tp):
-        """"""
-        # B, 1, H
+      
         dec_output = Tools._single_decode(input_seq.detach(), src_hidden, src_mask, decoder)
-        # B, 1, V
+        
         single_step_probs = self.proj(dec_out=dec_output,src_hidden=src_hidden,src_mask=src_mask,context=context,
                                       action=action,tp=tp)
         return single_step_probs
@@ -153,26 +139,26 @@ class Response(nn.Module):
                      ar, ar_hidden,ar_mask , tp, tp_hidden, tp_mask):
 
         batch_size = seq_gen.size(0)
-        scores = torch.zeros(batch_size * self.beam_width, dtype=torch.float).cuda() # [B*5]
+        scores = torch.zeros(batch_size * self.beam_width, dtype=torch.float).cuda() 
         mature_buckets = [MatureBucket(self.beam_width) for _ in range(batch_size)]
 
-        # test
+        
         for i in range(op.r_max_len-1):
             if i == 0:
-                # B, 1, V
+              
                 i_step_output = self.single_decode(seq_gen, src_hiddens, src_mask, self.decoder,
                                                    ar,pv_ru)
-                # B, 1, k  |  B, 1, k
+                
                 topk_probs, word_index = i_step_output.topk(self.beam_width, dim=-1)
 
-                scores = scores + torch.log(topk_probs.reshape(-1))  # B * k, 1
-                flat_word_index = word_index.reshape(-1, 1)  # B * k, 1
+                scores = scores + torch.log(topk_probs.reshape(-1)) 
+                flat_word_index = word_index.reshape(-1, 1)
 
-                seq_gen = expand_if_not_none(seq_gen, 0, self.beam_width)  # B * k, L'
-                seq_gen = torch.cat([seq_gen, flat_word_index], 1)  # B * k, L' + 1
+                seq_gen = expand_if_not_none(seq_gen, 0, self.beam_width)  
+                seq_gen = torch.cat([seq_gen, flat_word_index], 1) 
 
-                # expand the tensors for beam search
-                src_hiddens = expand_if_not_none(src_hiddens, 0, self.beam_width)  # B, * ===> B * k, *
+            
+                src_hiddens = expand_if_not_none(src_hiddens, 0, self.beam_width)  
                 src_mask = expand_if_not_none(src_mask, 0, self.beam_width)
                 pv_ru_hidden = expand_if_not_none(pv_ru_hidden, 0, self.beam_width)
                 pv_ru_mask = expand_if_not_none(pv_ru_mask, 0, self.beam_width)
@@ -180,12 +166,12 @@ class Response(nn.Module):
                 ar_hidden = expand_if_not_none(ar_hidden, 0, self.beam_width)
                 ar = expand_if_not_none(ar, 0, self.beam_width)
             else:
-                # B * k, V
+                
                 i_step_output = self.single_decode(seq_gen, src_hiddens, src_mask, self.decoder,
                                                    ar,pv_ru)
-                # B * k, 1, k | B * k, 1, k
+               
                 topk_probs, word_index = i_step_output.topk(self.beam_width, dim=-1)
-                topk_probs = topk_probs.reshape(batch_size, -1)  # B, k * k
+                topk_probs = topk_probs.reshape(batch_size, -1)  
                 scores = scores.unsqueeze(-1).expand(-1, self.beam_width).reshape(batch_size, -1) + topk_probs
                 rets = self.harvest(scores, seq_gen, word_index, batch_size)
 
@@ -194,48 +180,36 @@ class Response(nn.Module):
                     for bi, gain in harvest_info:
                         mature_buckets[bi].push(gain)
 
-                # B, k | B, k
+                
                 topk_probs, topk_indices = scores.topk(self.beam_width, 1)
                 scores = topk_probs.reshape(-1)  # B * k
 
-                # B * k, k, T
+               
                 expand_seq_gen = seq_gen.unsqueeze(1).expand(-1, self.beam_width, -1)
-                # B * k, k, 1
+                
                 permute_word_output = word_index.permute(0, 2, 1)
-                # B * k, k, T + 1
+                
                 seq_gen = torch.cat([expand_seq_gen, permute_word_output], dim=2)
-                # B, k * k, T + 1
+                
                 seq_gen = seq_gen.reshape(batch_size, self.beam_width ** 2, -1)
-                # B, k, T + 1
+                
                 seq_gen = nested_index_select(seq_gen, topk_indices.long()).reshape(batch_size * self.beam_width, -1)
 
         scores, bst_trajectory_index = scores.reshape(batch_size, self.beam_width).max(-1)
         scores = scores.detach().cpu().numpy().tolist()
-        # B, T
+        
         bst_trajectory = nested_index_select(seq_gen.reshape(batch_size, self.beam_width, -1),
                                              bst_trajectory_index.unsqueeze(-1).long()).squeeze(1)
         for i, s in enumerate(scores):
             traj = bst_trajectory[i]
             mature_buckets[i].push(Branch(s, traj, op.r_beam_max_len))
 
-        # B, T
+       
         bst_trajectory = torch.stack([mb.get_max() for mb in mature_buckets], dim=0)
         return bst_trajectory
 
     def harvest(self, scores, history, word_index, obs):
-        """harvest the mature trajectory
-
-        Args:
-            scores(torch.FloatTensor):          B, k * k
-            history(torch.LongTensor):          B * k, T
-            word_index(torch.LongTensor):       B * k, 1, k
-            obs(int):                           batch size, 8 in inference stage
-
-        Returns:
-            scores:
-
-        """
-        # B, k * k
+        
         word_index = word_index.reshape(obs, -1)
         eos_sign = (word_index == self.eos_idx)
         eos_num = eos_sign.long().sum().item()
@@ -278,12 +252,7 @@ def nested_index_select(origin_data, select_index):
     return selected_data
 
 def expand_if_not_none(tensor, dim, beam_width):
-    """expand tensor dimension
-    Args:
-        tensor: torch.Tensor
-        dim: int
-        beam_width: int
-    """
+    
     if tensor is None:
         return None
     tensor_shape = list(tensor.shape)

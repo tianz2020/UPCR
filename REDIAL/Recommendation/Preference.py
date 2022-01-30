@@ -26,12 +26,7 @@ class PriorPreference(nn.Module):
         self.gen_proj = nn.Linear(self.hidden_size, self.n_topic_vocab)
 
     def forward(self,context,context_len,pv_m,pv_m_mask,tp_path,tp_path_len,tp_path_hidden):
-        '''
-        pv_ru           [B,Lc]
-        pv_ru_hidden    [B,Lc,H]
-        pv_ru_mask      [B,1,Lc]
-        pv_m            [B,L_m,V]
-        '''
+       
         bs = pv_m.size(0)
 
         # previous preference
@@ -76,9 +71,7 @@ class PriorPreference(nn.Module):
             return seq_gen_gumbel[:,1:]
 
     def proj(self,dec_out,context,src_hidden,src_mask,pv_m,tp_path):
-        '''
-        src_hiddens = torch.cat([context_hidden,pv_m_hidden,tp_path_hidden], 1)
-        '''
+       
         # generation  [B,1,V]
         gen_logit = self.gen_proj(dec_out)
         L_s = dec_out.size(1)
@@ -101,14 +94,14 @@ class PriorPreference(nn.Module):
         copy_context_prob = probs[:, :,self.n_topic_vocab :
                                        self.n_topic_vocab + op.context_max_len]
         # transfer origin word idx to inner word idx (B, L_c)
-        transfer_context_word = torch.gather(self.glo2loc.unsqueeze(0).expand(B, -1),  # [B,L_c] 词表换成了global
-                                             1, context)  # glo_idx to loc_idx
+        transfer_context_word = torch.gather(self.glo2loc.unsqueeze(0).expand(B, -1),  
+                                             1, context)  
         copy_context_temp = copy_context_prob.new_zeros(B, L_s, self.n_topic_vocab)
         copy_context_prob = copy_context_temp.scatter_add(dim=2,
                                                           index=transfer_context_word.unsqueeze(1).expand(-1, L_s, -1),
                                                           src=copy_context_prob)
 
-        # copy from pv_m   [B,1,L_m]  第i维代表复制pv_m中第i个词的概率
+        # copy from pv_m   [B,1,L_m]  
         copy_pv_m_prob = probs[:, :, self.n_topic_vocab + op.context_max_len :
                                      self.n_topic_vocab + op.context_max_len + op.preference_num ]
         copy_pv_m_prob = torch.bmm(copy_pv_m_prob, pv_m)
@@ -251,13 +244,9 @@ class PosteriorPreference(nn.Module):
         return probs
 
 
-#  这是不分词表的，分词表的注掉了
+
 def get_movie_rep(related_movies,related_movies_mask,relations,relations_len,p_encoder,movie_num):
-    '''
-    related_movies : [B,L]  相关的电影数量
-    related_movies_mask : [B,1,100]
-    return: [B,L,H]  电影的表示
-    '''
+   
     mask = None
     topics = None
     masks = None
