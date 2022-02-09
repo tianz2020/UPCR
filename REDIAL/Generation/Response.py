@@ -247,14 +247,6 @@ def one_hot_scatter(indice, num_classes, dtype=torch.float):
     return placeholder
 
 def top_k_top_p_filtering(logits, top_k=0, top_p=0.9, filter_value=-float('Inf')):
-    """ Filter a distribution of logits using top-k and/or nucleus (top-p) filtering
-        Args:
-            logits: logits distribution shape (batch size x vocabulary size)
-            top_k > 0: keep only top k tokens with highest probability (top-k filtering).
-            top_p > 0.0: keep the top tokens with cumulative probability >= top_p (nucleus filtering).
-                Nucleus filtering is described in Holtzman et al. (http://arxiv.org/abs/1904.09751)
-        From: https://gist.github.com/thomwolf/1a5a29f6962089e871b94cbd09daf317
-    """
 
     top_k = min(top_k, logits.size(-1))  # Safety check
     if top_k > 0:
