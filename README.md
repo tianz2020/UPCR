@@ -18,8 +18,8 @@ We implement our models on [TG-ReDial](https://github.com/RUCAIBox/TG-ReDial) an
 * For the recommendation task : `python /TG-Redial/Recommendation/main.py`
 * For the response generation task: `python /TG-Redial/Gneeration/main.py`
 ### REDIAL
-* For the recommendation task : `python /REDIAL/upcrRecRedial.py.py`
-* For the response generation task: `python /REDIAL/upcrRespRedial.py.py`
+* For the recommendation task : `python /REDIAL/recommendation.py`
+* For the response generation task: `python /REDIAL/generation.py`
 
 For convenience, our model will report the result on test data automatically after covergence.
 # Reference
