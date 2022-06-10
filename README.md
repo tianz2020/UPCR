@@ -14,9 +14,9 @@ We implement our models on [TG-ReDial](https://github.com/RUCAIBox/TG-ReDial) an
 
 # Training
 ### TG-ReDial
-* For the topic prediction task : `python /TG-Redial/TopicPrediction/main.py`
-* For the recommendation task : `python /TG-Redial/Recommendation/main.py`
-* For the response generation task: `python /TG-Redial/Gneeration/main.py`
+* For the topic prediction task : `python /TG-Redial/topic.py`
+* For the recommendation task : `python /TG-Redial/recommendation.py`
+* For the response generation task: `python /TG-Redial/generation.py`
 ### REDIAL
 * For the recommendation task : `python /REDIAL/recommendation.py`
 * For the response generation task: `python /REDIAL/generation.py`
