@@ -1,58 +1,47 @@
-import json as js
-import torch
 from option import option
 import numpy as np
-import ipdb
-from DataProcessor import clip_pad_sentence
 
 class Vocab(object):
-    def __init__(self,word_vocab=False,topic_vocab=False):
+    def __init__(self,task='', word_vocab=False,topic_vocab=False):
         super(Vocab, self).__init__()
-        self.word_list,self.word_len,self.topic_list,self.topic_len, self.movie_list, self.movie_len = self.get_vocab()
-
+        self.word_list,self.word_len,self.topic_list,self.topic_len = self.get_vocab(task)
         self.word2idx = dict(zip(self.word_list, range(len(self.word_list))))
         self.idx2word = { id:word for word,id in self.word2idx.items() }
-
         self.topic2idx = dict(zip(self.topic_list, range(len(self.topic_list))))
         self.idx2topic = {id:word for word,id in self.topic2idx.items()}
-
-        self.movie2idx = dict(zip(self.movie_list, range(len(self.movie_list))))
-        self.idx2movie = {id: word for word, id in self.movie2idx.items()}
-
         self.word_vocab = word_vocab
         self.topic_vocab = topic_vocab
 
-    def get_vocab(self):
-        
+    def get_vocab(self,task):
         action_type = ['谈论', '拒绝', '请求推荐', '允许推荐', '推荐电影', '反馈', '反馈，结束']
-        RESERVED_WORDS = [ option.PAD_WORD,option.BOS_PRE, option.BOS_PRO,
-                           option.UNK_WORD]
-
+        RESERVED_WORDS = [ option.PAD_WORD,option.BOS_PRE, option.BOS_PRO,option.UNK_WORD]
         topic_vocab = []
-        with open(option.topic_movie_file, encoding='utf-8') as topic_file:
-            for line in topic_file:
-                line = line.strip('\n')
-                topic_vocab.append(line)
-        topic_vocab = RESERVED_WORDS + action_type + topic_vocab
-        topic_len = len(topic_vocab)
-
-        movie_vocab = []
-        with open(option.movie_file,encoding='utf-8') as movie_file:
-            for line in movie_file:
-                line = line.strip('\n')
-                movie_vocab.append(line)
-        movie_vocab = RESERVED_WORDS + action_type + movie_vocab
-        movie_len = len(movie_vocab)
-
-       
         word_vocab = []
-        with open(option.vocab_movie_file, encoding='utf-8') as vocab_file:
-            for line in vocab_file.readlines():
-                line = line.strip('\n')
-                word_vocab.append(line)
-        word_len = len(word_vocab)
-
-        return word_vocab, word_len, topic_vocab, topic_len, movie_vocab, movie_len
+        if task == 'rec':
+            with open(option.topic_movie_file, encoding='utf-8') as topic_file:
+                for line in topic_file:
+                    line = line.strip('\n')
+                    topic_vocab.append(line)
+            topic_vocab = RESERVED_WORDS + action_type + topic_vocab
+            topic_len = len(topic_vocab)
+            with open(option.vocab_movie_file, encoding='utf-8') as vocab_file:
+                for line in vocab_file.readlines():
+                    line = line.strip('\n')
+                    word_vocab.append(line)
+            word_len = len(word_vocab)
+        else:
+            with open(option.topic_file, encoding='utf-8') as topic_file:
+                for line in topic_file:
+                    line = line.strip('\n')
+                    topic_vocab.append(line)
+            topic_vocab = RESERVED_WORDS + action_type + topic_vocab
+            topic_len = len(topic_vocab)
+            with open(option.vocab_file, encoding='utf-8') as vocab_file:
+                for line in vocab_file.readlines():
+                    line = line.strip('\n')
+                    word_vocab.append(line)
+            word_len = len(word_vocab)
+        return word_vocab, word_len, topic_vocab, topic_len
 
     def word2index(self,word):
         unk_id = self.word2idx.get('[UNK]')
@@ -106,20 +95,6 @@ class Vocab(object):
         else:
             raise ValueError("wrong type {}".format(type(index)))
 
-    def movie2index(self,movie):
-
-        unk_id = self.movie2idx.get('[UNK]')
-        if isinstance(movie, str):
-            return self.movie2idx.get(movie, unk_id)
-        elif isinstance(movie, list):
-            return [self.movie2index(w) for w in movie]
-        elif movie is None:
-            return self.movie2idx.get(option.PAD_WORD)
-        else:
-
-            raise ValueError("wrong type {}".format(type(movie)))
-
-
     def item_in(self, word):
         if self.word_vocab:
             return self.word2index(word)
@@ -140,7 +115,6 @@ class Vocab(object):
         glo2loc = []
         for word in self.word_list:
             glo2loc.append(self.topic2index(word))
-
         loc2glo = []
         for index,topic in enumerate(self.topic_list):
             if index > 2582:
@@ -163,37 +137,3 @@ class Vocab(object):
         movienum = self.topic_num() - non_movie
         return movienum
 
-
-    def get_topic_relations(self):
-        topic2topic = js.load(open('./dataset/topic_graph.json'))
-        relations = torch.zeros([self.topic_len,self.topic_len],dtype=torch.float)
-        for i, topic in enumerate(self.topic_list):
-            related_topics = []
-            if topic in topic2topic:
-                related_topics = topic2topic[topic]
-            related_topics = self.topic2index(related_topics)
-            relations[i, related_topics] = 1.0
-        relations = relations.cuda()
-        relations[:, 0] = 0.0  
-        relations = relations.unsqueeze(0).expand(option.batch_size, -1, -1)
-        return relations
-
-    def get_movie_relations(self):
-        movie2topic = js.load(open('./dataset/allgraph_allmovie.json'))
-        relations = torch.zeros([self.topic_len,self.topic_len],dtype=torch.float)
-        relations_length = []
-        for i,movie in enumerate(self.topic_list):
-            related_topics = []
-            if movie in movie2topic:
-                related_topics = movie2topic[movie]
-           
-            related_topics = self.topic2index(related_topics)
-            
-            relations[i,related_topics] = 1.0
-
-        
-        relations = relations.cuda()
-        relations[:,0] = 0.0  # pad
-        relations = relations.unsqueeze(0).expand(option.batch_size,-1,-1)
-
-        return relations, relations_length
