@@ -1,8 +1,0 @@
-nohup: ignoring input
-[af2f5689] - 06/10/2022 12:40:12 [topic.py 10] main - INFO: TASK ID af2f5689
-[af2f5689] - 06/10/2022 12:40:12 [topic.py 29] main - INFO: preparing data
-epoch : 0
-global_step: 0
-kl_preference: 0.07816525548696518
-kl_profile: 0.336580753326416
-nll_ar: 6.466945171356201

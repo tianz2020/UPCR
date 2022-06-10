@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project version="4">
-  <component name="SshConfigs">
-    <configs>
-      <sshConfig authType="PASSWORD" host="10.102.32.202" id="90cb4986-7f13-473c-90c9-9feebb8c1237" port="22" nameFormat="DESCRIPTIVE" username="lidd" useOpenSSHConfig="true" />
-    </configs>
-  </component>
-</project>
